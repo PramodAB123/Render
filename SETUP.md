@@ -48,8 +48,11 @@ a 3D cinema video about 20-30. A public repo has unlimited minutes (your keys st
 
 ## Length and visuals
 
-**Length** (Run workflow form): `short` = vertical Short (~30 s). `1 / 3 / 5 / 10 min` = 16:9 narrated video with chapters,
-written by Ollama in parts (outline first, then each chapter), subtitles at the bottom, no #shorts tag.
+**Length** and **orientation** are separate choices in the Run workflow form, for every mode.
+- Length: `30 sec`, `1 min`, `3 min`, `5 min`, `10 min`. 1 min and longer are written by Ollama in chapters
+  (outline first, then each chapter).
+- Orientation: `portrait` (9:16, Shorts/Reels; up to 3 min it uploads as a Short with #shorts) or `landscape`
+  (16:9 normal YouTube video, subtitles at the bottom, no #shorts tag). The 3D `cinema` room is portrait-only, up to 1 min.
 
 **Visuals:**
 - `stock`: Pixabay (and Pexels if you have a key) clips.
