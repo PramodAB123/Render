@@ -52,19 +52,23 @@ def main():
     name = time.strftime("%Y%m%d-%H%M") + f"-{g['name']}-{secs}s-{a.orientation}-" + slug(sc["title"], 32); d = str(WORK / name); os.makedirs(d, exist_ok=True)
     json.dump(sc, open(os.path.join(d, "story.json"), "w", encoding="utf-8"), indent=1, ensure_ascii=False)
     step("3/7 voice");    durs = voice.voice_lines(sc["lines"], d, g)
+    gap = None
+    if a.mode != "cinema":   # land close to the length that was picked (speed up or add pauses)
+        durs, gap = voice.fit_length(sc["lines"], durs, d, secs, g.get("gap", timeline.GAP))
     step(f"4/7 visuals ({a.mode})")
     if a.mode == "cinema":
         cinema.render(sc, d, g, fast=not a.full_quality)
     elif a.mode == "2d":
-        tl = timeline.build_timeline(sc["lines"], durs, d, g); toon.render(sc, tl, d, g, size)
+        tl = timeline.build_timeline(sc["lines"], durs, d, g, gap=gap); toon.render(sc, tl, d, g, size)
     else:
-        tl = timeline.build_timeline(sc["lines"], durs, d, g)
+        tl = timeline.build_timeline(sc["lines"], durs, d, g, gap=gap)
         timeline.write_ass(tl, os.path.join(d, "captions.ass"), g, size); stock.render(tl, d, g, size, a.mode)
     tl = json.load(open(os.path.join(d, "timeline.json")))
     out = OUTPUT / name; out.mkdir(parents=True, exist_ok=True); final = str(out / "final.mp4")
     step("5/7 music + mix"); timeline.music_and_mix(d, final, g, doc=a.mode == "doc")
     step("6/7 thumbnail"); thumb = thumbnail.make(final, sc.get("thumb_text") or sc["title"], str(out / "thumbnail.jpg"),
                                                   total=tl["total"], color=g.get("thumb_color", "#ffe34a"))
+    thumbnail.sheet(final, str(out / "sheet.jpg"), tl["total"])   # quick-review contact sheet with the safe area marked
     meta = {k: sc.get(k) for k in ("title", "description", "tags")}; meta["genre"] = g["name"]; meta["format"] = "short" if (not land and secs <= 180) else f"{secs}s-{a.orientation}"
     if stock.USED_CREDITS:  # Pexels/Pixabay ask creators to be credited
         meta["description"] = (meta.get("description") or "") + "\n\nFootage: " + "; ".join(stock.USED_CREDITS)

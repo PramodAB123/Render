@@ -5,7 +5,7 @@ import json, os, random, re, subprocess
 import requests
 from common import load_config, ROOT
 
-SHOTS = ["char", "map", "checklist", "chips", "message", "stat", "black"]
+SHOTS = ["char", "map", "checklist", "chips", "message", "stat", "graph", "black"]
 PLACES = ["mountains", "forest", "snow", "road", "city", "house", "room", "office", "cabin", "vehicle", "desert", "sea", "cave", "space", "school"]
 WEATHER = ["clear", "snow", "blizzard", "rain", "storm", "fog"]
 EMO = ["calm", "scared", "happy", "angry", "sad"]
@@ -13,12 +13,13 @@ EMO = ["calm", "scared", "happy", "angry", "sad"]
 PROMPT = """You write a {seconds}-second vertical 2D animated story video. Genre: {genre}. Style: {tone}
 Make ONE completely original story (never copy existing characters or videos). Idea: {idea}
 {inspo}
-It is told by a narrator in short punchy lines (6-16 words), present tense, with a ticking clock and rising stakes,
+It is told by a narrator in short punchy lines (6-14 words, one idea each), present tense, with a ticking clock and rising stakes,
 like a survival "what would you do" story. Characters may speak a few lines themselves.
 Every line picks a visual "shot":
  char (a character on screen), map (route on a map; data: from, to), checklist (data: title, items list of 3 short words),
  chips (data: items list of 2-3 short facts like "400 CANS OF SOUP"), message (radio/phone; data: from, text),
- stat (big number; data: value, label), black (dark pause).
+ stat (big number; data: value, label), graph (a line that rises or falls; data: label, values list of 4-8 numbers, suffix),
+ black (dark pause). Change the shot or place every 1-2 lines so the video never sits still; start the first line in action.
 "place" is one of: {places}. "weather" is one of: {weather}. "emotion" is one of: {emo}.
 "time" is a clock like "11:40 PM" that moves forward through the story. "temp" like "4°F".
 End with a two-option question for viewers.
@@ -98,6 +99,17 @@ def _clean_line(l, prev):
         out["data"] = {"from": str(d.get("from") or "TOWN")[:14], "to": str(d.get("to") or "DESTINATION")[:16]}
     elif out["shot"] == "message":
         out["data"] = {"from": str(d.get("from") or "RADIO")[:18], "text": str(d.get("text") or say)[:90], "channel": str(d.get("channel") or "19")[:3]}
+    elif out["shot"] == "graph":
+        vals = []
+        for x in (d.get("values") or []):
+            try:
+                vals.append(float(str(x).replace(",", "").rstrip("%kK")))
+            except ValueError:
+                pass
+        if len(vals) < 2:
+            out["shot"] = "stat"; out["data"] = {"value": out["hl"][0][:10], "label": str(d.get("label") or "")[:24]}
+        else:
+            out["data"] = {"label": str(d.get("label") or "")[:28], "values": vals[:10], "suffix": str(d.get("suffix") or "")[:4], "prefix": str(d.get("prefix") or "")[:2]}
     elif out["shot"] == "stat":
         out["data"] = {"value": str(d.get("value") or out["hl"][0])[:10], "label": str(d.get("label") or "")[:24]}
     return out
@@ -105,7 +117,7 @@ def _clean_line(l, prev):
 
 def write_story(g, idea, inspo, minutes=0):
     seconds = int(minutes * 60) if minutes else 30
-    want_words = seconds * 2.5; n_lines = max(10, round(want_words / 10))
+    want_words = seconds * 2.75; n_lines = max(8, round(want_words / 10))   # Edge voices speak about 2.7-3 words/s
     ins = ("Trending titles (tone only, do not copy):\n- " + "\n- ".join(inspo)) if inspo else ""
     story = None
     for attempt in range(3):

@@ -5,11 +5,13 @@ from common import load_config, CINEMA, MUSIC, FFMPEG, py
 LEAD, GAP, TAIL = 0.25, 0.12, 1.4
 
 
-def build_timeline(lines, durs, d, g, extra_cfg=None):
-    t = LEAD; segs = []; gap = g.get("gap", GAP)
+def build_timeline(lines, durs, d, g, extra_cfg=None, gap=None):
+    t = LEAD; segs = []; gap = g.get("gap", GAP) if gap is None else gap
     for ln, du in zip(lines, durs):
-        segs.append({**{k: v for k, v in ln.items() if k != "say"}, "text": ln["say"],
-                     "start": round(t, 3), "dur": du})
+        seg = {**{k: v for k, v in ln.items() if k not in ("say", "words")}, "text": ln["say"], "start": round(t, 3), "dur": du}
+        if ln.get("words"):   # word timings in video seconds (captions follow the voice word by word)
+            seg["words"] = [{"w": w["w"], "s": round(t + w["s"], 3), "e": round(t + w["e"], 3)} for w in ln["words"]]
+        segs.append(seg)
         t += du + gap
     total = round(segs[-1]["start"] + segs[-1]["dur"] + TAIL, 2)
     tl = {"cfg": extra_cfg or {}, "segs": segs, "total": total, "music": g.get("music", {"bpm": 84, "gain": 1.0})}
@@ -40,11 +42,17 @@ def write_ass(tl, path, g, size=None):
     for s in tl["segs"]:
         if s.get("nocap"):
             continue
-        words = s["text"].split(); hl = str(s.get("hl", "")).lower().strip(".,!?")
-        chunks = [words[i:i + per] for i in range(0, len(words), per)]
-        weights = [sum(len(w) + 2 for w in c) for c in chunks]; t = s["start"]
-        for c, wgt in zip(chunks, weights):
-            d = s["dur"] * wgt / sum(weights)
+        hl = str(s.get("hl", "") if not isinstance(s.get("hl"), list) else (s["hl"] or [""])[0]).lower().strip(".,!?")
+        if s.get("words"):   # exact timings from the voice
+            ws = s["words"]; groups = [ws[i:i + per] for i in range(0, len(ws), per)]; end = s["start"] + s["dur"]
+            timed = [([w["w"] for w in grp], grp[0]["s"], (groups[k + 1][0]["s"] if k + 1 < len(groups) else end)) for k, grp in enumerate(groups)]
+        else:
+            words = s["text"].split(); chunks = [words[i:i + per] for i in range(0, len(words), per)]
+            weights = [sum(len(w) + 2 for w in c) for c in chunks]; t0 = s["start"]; timed = []
+            for c, wgt in zip(chunks, weights):
+                dd = s["dur"] * wgt / sum(weights); timed.append((c, t0, t0 + dd)); t0 += dd
+        for c, t, t_end in timed:
+            d = t_end - t
             txt = " ".join((f"{{\\c{hlc}}}{w}{{\\c&H00FFFFFF&}}" if hl and w.lower().strip(".,!?\"'") == hl else w) for w in c)
             pop = "" if long_form else "{\\fscx70\\fscy70\\t(0,90,\\fscx108\\fscy108)\\t(90,160,\\fscx100\\fscy100)}"
             out.append(f"Dialogue: 0,{_ts(t)},{_ts(t + d)},Cap,,0,0,0,,{pop}{txt if long_form else txt.upper()}")

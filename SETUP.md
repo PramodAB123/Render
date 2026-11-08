@@ -74,6 +74,14 @@ a 3D cinema video about 20-30. A public repo has unlimited minutes (your keys st
   slide / iris scene transitions, spring-in captions with a camera shake on keywords, staggered chips and checklist
   ticks, a self-drawing map route with a bouncing pin, typed radio messages and elastic vote buttons. The timeline
   is paused and seeked to each frame's time, so renders are frame-exact.
+  It follows the rules of the MIT-licensed **claude-animation-skills** repo (stick-figure + graph skills), which the
+  workflow checks out at a pinned commit for its fonts: captions of 1-2 words timed to the voice word by word
+  (Edge-TTS word timings, no extra model), whip transitions with motion blur, impacts (burst + shake + flash) on
+  keywords, constant handheld drift, HUD and text kept inside the Instagram/Shorts safe area, a self-drawing line
+  graph shot, and pacing of about 2.75 words per second.
+- **Length fitting (all modes except cinema):** after the voice is made, the narration is brought close to the
+  length you picked: sped up together (up to 1.25x, pitch kept) if too long, or given longer pauses if too short.
+- Every video folder also gets `sheet.jpg`, an 8-frame contact sheet with the safe area marked in red, for a quick check.
 - `cinema`: the 3D code-rendered room (Shorts only).
 
 **AI images**: model `Lykon/dreamshaper-8-lcm` (Stable Diffusion 1.5 fine-tune), license CreativeML OpenRAIL-M, which
