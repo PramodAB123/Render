@@ -32,3 +32,27 @@ def make(video, text, out, at=None, total=None, color="#ffe34a"):
                stroke_width=max(4, size // 14), stroke_fill="black")
     bg.save(out, quality=92); os.remove(frame)
     return out
+
+
+# Instagram / Shorts cover the top ~220 px and the bottom ~420 px of a 1080x1920 video (safe area from claude-animation-skills)
+SAFE_TOP, SAFE_BOTTOM, SAFE_SIDE = 220, 1500, 100
+
+
+def sheet(video, out, total, n=8):
+    """Contact sheet of n frames; on portrait videos the red box is the area the app UI won't cover."""
+    try:
+        frames = []
+        for k in range(n):
+            f = f"{out}.{k}.jpg"
+            subprocess.run([FFMPEG, "-v", "error", "-y", "-ss", f"{total * (k + 0.5) / n:.2f}", "-i", video, "-frames:v", "1", f], check=True)
+            im = Image.open(f).convert("RGB"); os.remove(f)
+            if im.height > im.width:
+                d = ImageDraw.Draw(im); sx, sy = im.width / 1080, im.height / 1920
+                d.rectangle([SAFE_SIDE * sx, SAFE_TOP * sy, im.width - SAFE_SIDE * sx, SAFE_BOTTOM * sy], outline="#ff2e3f", width=6)
+            frames.append(im.resize((360, int(360 * im.height / im.width))))
+        cols = 4; w, h = frames[0].size; s = Image.new("RGB", (w * cols, h * ((len(frames) + cols - 1) // cols)), "black")
+        for i, im in enumerate(frames):
+            s.paste(im, ((i % cols) * w, (i // cols) * h))
+        s.save(out, quality=85)
+    except Exception as e:
+        print("  contact sheet skipped:", e)

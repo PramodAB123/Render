@@ -3,6 +3,10 @@
 const {chromium} = require('playwright'); const fs = require('fs'), path = require('path'), http = require('http'); const {spawn} = require('child_process');
 const ENG = __dirname, PROJ = path.resolve(process.argv[2] || '.'), mode = process.argv[3];
 const LIBS = {'/lib/gsap.min.js': path.join(ENG, '..', 'node_modules', 'gsap', 'dist', 'gsap.min.js')};   // GSAP comes from npm (package.json)
+// OFL fonts from claude-animation-skills (MIT), cloned into vendor/ by the workflow; missing locally -> Google Fonts fallback
+const SK = path.join(ENG, '..', 'vendor', 'animation-skills');
+LIBS['/fonts/inter-tight-latin-800-normal.woff2'] = path.join(SK, 'kit', 'fonts', 'inter-tight-latin-800-normal.woff2');
+LIBS['/fonts/Poppins-Bold.ttf'] = path.join(SK, 'skills', 'stick-figure', 'engine', 'template', 'web', 'fonts', 'Poppins-Bold.ttf');
 const srv = http.createServer((q, r) => { const u = decodeURIComponent(q.url.split('?')[0]); const f = LIBS[u] || path.join(ENG, u); if ((!LIBS[u] && !f.startsWith(ENG)) || !fs.existsSync(f)) { r.writeHead(404); return r.end(); }
   r.writeHead(200, {'Content-Type': f.endsWith('.html') ? 'text/html' : f.endsWith('.js') ? 'text/javascript' : 'application/octet-stream'}); fs.createReadStream(f).pipe(r); });
 (async () => {

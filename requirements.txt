@@ -1,4 +1,4 @@
-edge-tts
+edge-tts>=7.2
 kokoro-onnx
 soundfile
 numpy

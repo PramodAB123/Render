@@ -66,6 +66,16 @@ jobs:
           sudo apt-get update -q && sudo apt-get install -y -q ffmpeg fonts-dejavu-core
           sudo apt-get install -y -q fonts-inter || true
 
+      # MIT-licensed animation kit by Artem Novitckii, pinned to a tested commit. The 2D engine uses its
+      # OFL fonts (Inter Tight, Poppins) and follows its stick-figure skill rules (word-timed 1-2 word captions,
+      # whip transitions, impacts, safe area, 2.7-3 words/s pacing).
+      - name: claude-animation-skills (fonts + style rules for 2d)
+        uses: actions/checkout@v7
+        with:
+          repository: artemnovitckii/claude-animation-skills
+          ref: 5dbea55c23aa6a5c93dc3cfb5583840513b56b94
+          path: vendor/animation-skills
+
       - name: Python + Node packages
         run: |
           pip install -q -r requirements.txt
