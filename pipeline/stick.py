@@ -7,7 +7,7 @@ import requests
 from common import load_config, ROOT, FFMPEG
 
 ENGINE = ROOT / "vendor" / "animation-skills" / "skills" / "stick-figure" / "engine"
-SETUPS = ["closeup", "talk", "walk", "run", "crowd", "object", "reveal", "night", "impact", "sea", "bigtext", "think", "breakdown"]
+SETUPS = ["closeup", "talk", "walk", "run", "crowd", "object", "reveal", "night", "impact", "sea", "bigtext", "think"]
 MOODS = ["calm", "happy", "scared", "shocked", "angry", "sad", "smug", "dizzy", "think"]
 COLS = ["red", "blue", "yellow", "green", "navy", "purple"]
 
@@ -18,8 +18,7 @@ Structure (from the stick-figure skill): a hook that starts in action, the commo
 examples that build, one shot that shows how it works, and a payoff that answers the hook. One idea per line, 6-14 words.
 For every line choose a "setup" (what we see): closeup (big face reacting), talk (two characters), walk, run, crowd,
 object (a crate labelled with "label"), reveal (a chest opens; "label" pops out), night (dark, lantern, scared),
-impact (comic burst with "label" like BOOM), sea (ship on the sea), bigtext ("label" in huge letters), think (question marks),
-breakdown (3D exploded view of a PHONE with "labels" = 6 [name, short note] pairs; only if a phone matters).
+impact (comic burst with "label" like BOOM), sea (ship on the sea), bigtext ("label" in huge letters), think (question marks).
 Change the setup every line. "mood" is one of: {moods}. "time_of_day": day, dusk, night or dawn.
 "ground": grass, sand, snow, road, floor or sea.
 Reply with JSON only:
@@ -87,11 +86,6 @@ def write_story(g, idea, inspo, secs):
                       "label": str(l.get("label") or "")[:16], "tod": _pick(l.get("time_of_day"), ["day", "dusk", "night", "dawn"], "day"),
                       "ground": _pick(l.get("ground"), ["grass", "sand", "snow", "road", "floor", "sea"], "grass"),
                       "hl": str(l.get("hl") or "").upper()[:16]})
-        if setup == "breakdown":
-            lines[-1]["minDur"] = 4.0
-            labs = [x for x in (l.get("labels") or []) if isinstance(x, (list, tuple)) and x][:6]
-            lines[-1]["data"] = {"title": "Phone", "subtitle": l.get("label") or "Exploded view",
-                                 "labels": [[str(x[0])[:16], str(x[1] if len(x) > 1 else "")[:22]] for x in labs]}
     if g["cta"].lower().rstrip(".") not in lines[-1]["say"].lower():
         lines.append({"say": g["cta"], "setup": "bigtext", "mood": "happy", "who": 0, "label": g["cta"].split()[0], "tod": "day", "ground": "grass", "hl": ""})
     lines[0]["setup"] = "closeup" if lines[0]["setup"] not in ("closeup", "impact", "run") else lines[0]["setup"]

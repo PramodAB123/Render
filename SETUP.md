@@ -88,9 +88,6 @@ a 3D cinema video about 20-30. A public repo has unlimited minutes (your keys st
   closeup, talk, walk, run, crowd, object (labelled crate), reveal (chest opens), night (lantern), impact (burst),
   sea (ship), bigtext, think. Script follows the skill: hook in action, the belief, a turn on "But", examples,
   the mechanism, the payoff. Landscape puts the 9:16 frame on a blurred widened copy.
-- **`/breakdown` cutaways (in `2d` and `stick`):** when the script needs to show what's inside a phone, that line
-  becomes the skill's 3D exploded view (six layers with leader lines and labels written by the script), rendered
-  by `toon/hf_render.js` (no HyperFrames needed, ~25 s per clip). The skill only has a phone model.
 - `cinema`: the 3D code-rendered room (Shorts only).
 
 **AI images**: model `Lykon/dreamshaper-8-lcm` (Stable Diffusion 1.5 fine-tune), license CreativeML OpenRAIL-M, which

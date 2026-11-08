@@ -10,7 +10,7 @@
 import argparse, json, os, sys, time
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "pipeline"))
 from common import load_config, genre_cfg, slug, WORK, OUTPUT  # noqa: E402
-import ideas, scriptgen, voice, timeline, stock, cinema, thumbnail, toon, stick, inserts  # noqa: E402
+import ideas, scriptgen, voice, timeline, stock, cinema, thumbnail, toon, stick  # noqa: E402
 
 
 def parse_length(s):
@@ -68,8 +68,6 @@ def main():
         tl = timeline.build_timeline(sc["lines"], durs, d, g, gap=gap)
         timeline.write_ass(tl, os.path.join(d, "captions.ass"), g, size); stock.render(tl, d, g, size, a.mode)
     tl = json.load(open(os.path.join(d, "timeline.json")))
-    if a.mode in ("2d", "stick"):
-        inserts.apply(tl, d, g, size)   # /breakdown 3D exploded-view cutaways
     out = OUTPUT / name; out.mkdir(parents=True, exist_ok=True); final = str(out / "final.mp4")
     step("5/7 music + mix"); timeline.music_and_mix(d, final, g, doc=a.mode == "doc")
     step("6/7 thumbnail"); thumb = thumbnail.make(final, sc.get("thumb_text") or sc["title"], str(out / "thumbnail.jpg"),
