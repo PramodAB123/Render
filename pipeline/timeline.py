@@ -8,7 +8,7 @@ LEAD, GAP, TAIL = 0.25, 0.12, 1.4
 def build_timeline(lines, durs, d, g, extra_cfg=None, gap=None):
     t = LEAD; segs = []; gap = g.get("gap", GAP) if gap is None else gap
     for ln, du in zip(lines, durs):
-        du = max(du, float(ln.get("minDur") or 0))   # a breakdown cutaway needs ~4 s to come apart and show its labels
+        du = max(du, float(ln.get("minDur") or 0))   # optional minimum length for a line
         seg = {**{k: v for k, v in ln.items() if k not in ("say", "words")}, "text": ln["say"], "start": round(t, 3), "dur": du}
         if ln.get("words"):   # word timings in video seconds (captions follow the voice word by word)
             seg["words"] = [{"w": w["w"], "s": round(t + w["s"], 3), "e": round(t + w["e"], 3)} for w in ln["words"]]
