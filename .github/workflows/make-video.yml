@@ -7,6 +7,11 @@ on:
     - cron: "30 13 * * *"
   workflow_dispatch:
     inputs:
+      genre:
+        description: "Genre - changes script tone, clips, colours, voice, music and pacing"
+        default: "horror"
+        type: choice
+        options: [horror, comedy, science, motivation, mystery]
       mode:
         description: "stock (Pexels/Pixabay clips) or cinema (3D code-rendered room)"
         default: "stock"
@@ -72,10 +77,11 @@ jobs:
       - name: Make the video
         env:
           MODE: ${{ inputs.mode || 'stock' }}
+          GENRE: ${{ inputs.genre || 'rotate' }}   # daily runs rotate through all genres
           IDEA: ${{ inputs.idea }}
           WANT_UPLOAD: ${{ github.event_name == 'schedule' || inputs.upload }}
         run: |
-          ARGS=(--mode "$MODE")
+          ARGS=(--genre "$GENRE" --mode "$MODE")
           if [ -n "$IDEA" ]; then ARGS+=(--idea "$IDEA"); fi
           if [ "$WANT_UPLOAD" = "true" ]; then
             if [ -n "$YT_REFRESH_TOKEN" ]; then ARGS+=(--upload); else echo "No YT_REFRESH_TOKEN secret yet - skipping upload"; fi

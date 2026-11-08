@@ -34,6 +34,18 @@ def load_config():
     return json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
 
 
+def genre_cfg(name=None):
+    """Settings for one genre (horror, comedy, ...). 'rotate' picks a different genre each day."""
+    import datetime
+    cfg = load_config(); genres = cfg["genres"]
+    name = (name or cfg.get("default_genre", "horror")).lower()
+    if name == "rotate":
+        keys = sorted(genres); name = keys[datetime.date.today().toordinal() % len(keys)]
+    if name not in genres:
+        raise SystemExit(f"Unknown genre {name!r}. Choose one of: {', '.join(genres)}")
+    return {"name": name, **genres[name]}
+
+
 def slug(text, n=40):
     s = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
     return s[:n].strip("-") or "video"

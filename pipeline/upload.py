@@ -28,12 +28,13 @@ def service():
     return build("youtube", "v3", credentials=creds)
 
 
-def upload(video, meta, thumb=None):
+def upload(video, meta, thumb=None, g=None):
     from googleapiclient.http import MediaFileUpload
     y = load_config()["youtube"]; yt = service()
-    tags = list(dict.fromkeys((meta.get("tags") or []) + y["default_tags"]))[:15]
+    g = g or {}
+    tags = list(dict.fromkeys((meta.get("tags") or []) + g.get("tags", []) + ["shorts"]))[:15]
     body = {"snippet": {"title": meta["title"][:95] + " #shorts" if "#shorts" not in meta["title"] else meta["title"][:100],
-                        "description": meta.get("description", "") + "\n\n#shorts", "tags": tags, "categoryId": y["category_id"]},
+                        "description": meta.get("description", "") + "\n\n#shorts", "tags": tags, "categoryId": g.get("category_id", "24")},
             "status": {"privacyStatus": y["privacy"], "selfDeclaredMadeForKids": y["made_for_kids"],
                        "containsSyntheticMedia": y.get("synthetic_media", True)}}
     req = yt.videos().insert(part="snippet,status", body=body, media_body=MediaFileUpload(video, chunksize=-1, resumable=True))
@@ -53,6 +54,6 @@ def upload(video, meta, thumb=None):
 if __name__ == "__main__":
     # python pipeline\upload.py output\<name>   -> uploads final.mp4 with meta.json + thumbnail.jpg
     import os
-    d = sys.argv[1]
-    upload(os.path.join(d, "final.mp4"), json.load(open(os.path.join(d, "meta.json"), encoding="utf-8")),
-           os.path.join(d, "thumbnail.jpg"))
+    from common import genre_cfg
+    d = sys.argv[1]; meta = json.load(open(os.path.join(d, "meta.json"), encoding="utf-8"))
+    upload(os.path.join(d, "final.mp4"), meta, os.path.join(d, "thumbnail.jpg"), genre_cfg(meta.get("genre")))

@@ -33,9 +33,10 @@ def _pixabay(q, key):
     return res
 
 
-def find_clip(query, used, need):
+def find_clip(query, used, need, style=""):
     keys = {"pexels": os.environ.get("PEXELS_API_KEY"), "pixabay": os.environ.get("PIXABAY_API_KEY")}
-    for q in (query, " ".join(query.split()[:1]) or query):
+    tries = [f"{query} {style}".strip(), query, query.split()[0] if query.split() else query, style or query]
+    for q in dict.fromkeys(t for t in tries if t):
         for name, fn in (("pexels", _pexels), ("pixabay", _pixabay)):
             if not keys[name]:
                 continue
@@ -54,14 +55,14 @@ def find_clip(query, used, need):
     return None
 
 
-def render(tl, d):
+def render(tl, d, g):
     v = load_config()["video"]; W, H = v["size"]; fps = v["fps"]; S = tl["segs"]; used = set(); parts = []
     for i, s in enumerate(S):
         a = 0 if i == 0 else S[i]["start"]; b = S[i + 1]["start"] if i + 1 < len(S) else tl["total"]; ln = round(b - a, 3)
-        clip = find_clip(s.get("visual") or s["text"], used, ln)
+        clip = find_clip(s.get("visual") or s["text"], used, ln, g.get("visual_style", ""))
         part = os.path.join(d, f"part{i}.mp4"); parts.append(part)
         vf = (f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},fps={fps},setsar=1,"
-              f"eq=brightness=-0.04:saturation=0.85,vignette=PI/5,format=yuv420p")
+              f"{g.get('grade', 'null')},format=yuv420p")
         if clip:
             print(f"  clip {i}: {clip.name}  ({s.get('visual')})")
             src = ["-stream_loop", "-1", "-i", str(clip)]

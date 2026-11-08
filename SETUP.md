@@ -46,10 +46,25 @@ a 3D cinema video about 20-30. A public repo has unlimited minutes (your keys st
 - Uploads go out as `private` by default (`config.json` > `youtube.privacy`) so you can check them first; set it to `public` when you trust it.
 - Pexels and Pixabay ask you to credit the creators: the pipeline adds a "Footage:" credits line to each description automatically.
 
+## Genres
+
+Pick one in the **Genre** dropdown when you press Run workflow. Daily automatic runs rotate through all five.
+
+| Genre | Script | Clips | Look | Voice | Music | Pace |
+|---|---|---|---|---|---|---|
+| horror | slow-burn dread, cliffhanger | dark, foggy, abandoned, night | dark, desaturated, blue shadows, grain, vignette | deep slow male + echo | slow 60 bpm diminished chords | long pauses |
+| comedy | relatable, punchlines, twist ending | funny animals, faces, fails | bright, punchy colour | upbeat fast female | bouncy 116 bpm major | snappy |
+| science | true facts building to a wow | space, lab, nature | clean, crisp, cool tint | clear British male | curious 92 bpm | medium |
+| motivation | punchy speech, rising energy | training, running, sunrise | high contrast, warm | deep steady male | driving 96 bpm | dramatic pauses |
+| mystery | documentary clues, open question | fog, ocean, old maps, ruins | muted, purple-blue | calm narrator | eerie 70 bpm | measured |
+
+Each genre lives under `genres` in `config.json`: edit its `tone`, `seed_ideas`, `idea_queries`, `visual_hint`, `grade` (FFmpeg colour filter),
+`voice` (any free Edge voice + rate/pitch), `music` (bpm + chords), `gap` (pause between lines), caption `highlight` colour, `cta`, `tags`.
+To use real free music for a genre, add tracks to `music/<genre>/` (e.g. `music/comedy/`).
+
 ## Settings (`config.json`, edit on github.com and commit)
 
-- `niche`, `idea_queries`, `seed_ideas`: what to make.
-- `voice.edge_voice`: any free Edge voice, e.g. `en-US-GuyNeural`, `en-GB-RyanNeural`, `en-US-ChristopherNeural`.
+- `default_genre`, `daily_genre` (`rotate` or one genre name).
 - `youtube.privacy`: `private`, `unlisted` or `public`.
 - Change the daily time in the `cron` line of the workflow (UTC).
 - Tip: watch a few videos before letting it upload publicly; YouTube can demonetize repetitive mass-produced AI content.

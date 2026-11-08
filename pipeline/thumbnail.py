@@ -7,7 +7,7 @@ FONTS = ["C:/Windows/Fonts/ariblk.ttf", "C:/Windows/Fonts/impact.ttf", "C:/Windo
          "/usr/share/fonts/truetype/msttcorefonts/Arial_Black.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]
 
 
-def make(video, text, out, at=None, total=None):
+def make(video, text, out, at=None, total=None, color="#ffe34a"):
     frame = out + ".frame.jpg"; at = at if at is not None else (total or 9) * 0.35
     subprocess.run([FFMPEG, "-v", "error", "-y", "-ss", f"{at:.2f}", "-i", video, "-frames:v", "1", frame], check=True)
     src = Image.open(frame).convert("RGB"); W, H = 1280, 720
@@ -24,7 +24,7 @@ def make(video, text, out, at=None, total=None):
         size -= 6
     y = (H - size * 1.1 * len(lines)) / 2
     for i, l in enumerate(lines):
-        d.text((40, y + i * size * 1.1), l, font=font, fill="#ffe34a" if i == len(lines) - 1 else "white",
+        d.text((40, y + i * size * 1.1), l, font=font, fill=color if i == len(lines) - 1 else "white",
                stroke_width=max(4, size // 14), stroke_fill="black")
     bg.save(out, quality=92); os.remove(frame)
     return out

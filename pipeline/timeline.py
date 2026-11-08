@@ -5,14 +5,14 @@ from common import load_config, CINEMA, MUSIC, FFMPEG, py
 LEAD, GAP, TAIL = 0.25, 0.12, 1.4
 
 
-def build_timeline(lines, durs, d, extra_cfg=None):
-    t = LEAD; segs = []
+def build_timeline(lines, durs, d, g, extra_cfg=None):
+    t = LEAD; segs = []; gap = g.get("gap", GAP)
     for ln, du in zip(lines, durs):
         segs.append({**{k: v for k, v in ln.items() if k != "say"}, "text": ln["say"],
                      "start": round(t, 3), "dur": du})
-        t += du + GAP
+        t += du + gap
     total = round(segs[-1]["start"] + segs[-1]["dur"] + TAIL, 2)
-    tl = {"cfg": extra_cfg or {}, "segs": segs, "total": total, "music": {"bpm": 84, "gain": 1.0}}
+    tl = {"cfg": extra_cfg or {}, "segs": segs, "total": total, "music": g.get("music", {"bpm": 84, "gain": 1.0})}
     json.dump(tl, open(os.path.join(d, "timeline.json"), "w"), indent=1)
     return tl
 
@@ -22,12 +22,13 @@ def _ts(x):
     return f"{h}:{m:02d}:{s:05.2f}"
 
 
-def write_ass(tl, path):
-    v = load_config()["video"]; W, H = v["size"]; hlc = v.get("highlight", "&H004AE3FF")
+def write_ass(tl, path, g):
+    v = load_config()["video"]; W, H = v["size"]; hlc = g.get("highlight", "&H004AE3FF")
+    size = g.get("caption_size", v["caption_size"])
     out = ["[Script Info]", "ScriptType: v4.00+", f"PlayResX: {W}", f"PlayResY: {H}", "",
            "[V4+ Styles]",
            "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-           f"Style: Cap,{v['caption_font']},{v['caption_size']},&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,7,3,5,60,60,0,1",
+           f"Style: Cap,{v['caption_font']},{size},&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,7,3,5,60,60,0,1",
            "", "[Events]", "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text"]
     for s in tl["segs"]:
         if s.get("nocap"):
@@ -44,16 +45,22 @@ def write_ass(tl, path):
     open(path, "w", encoding="utf-8").write("\n".join(out) + "\n")
 
 
-def music_and_mix(d, out_mp4):
+def music_and_mix(d, out_mp4, g):
     """Synth lofi bed + SFX from code-cinema, or a free track from Render\\music, then duck + mix."""
     py(CINEMA / "tools" / "sfx.py", d)
-    tracks = [f for f in os.listdir(MUSIC) if f.lower().endswith((".mp3", ".wav", ".m4a", ".ogg"))] if MUSIC.exists() else []
+    # free tracks: Render/music/<genre>/ first, then Render/music/
+    tracks = []
+    for folder in (MUSIC / g["name"], MUSIC):
+        if folder.exists():
+            tracks = [folder / f for f in os.listdir(folder) if f.lower().endswith((".mp3", ".wav", ".m4a", ".ogg"))]
+        if tracks:
+            break
     if tracks:
-        tl = json.load(open(os.path.join(d, "timeline.json"))); g = load_config()["video"].get("music_gain", 0.9)
-        pick = random.choice(tracks); print("  music:", pick)
-        subprocess.run([FFMPEG, "-v", "error", "-y", "-stream_loop", "-1", "-i", str(MUSIC / pick), "-t", str(tl["total"] + 1),
-                        "-af", f"volume={g * 0.5},afade=t=out:st={tl['total'] - 1.2}:d=1.2", "-ar", "44100", "-ac", "2",
+        tl = json.load(open(os.path.join(d, "timeline.json"))); gain = load_config()["video"].get("music_gain", 0.9)
+        pick = random.choice(tracks); print("  music:", pick.name)
+        subprocess.run([FFMPEG, "-v", "error", "-y", "-stream_loop", "-1", "-i", str(pick), "-t", str(tl["total"] + 1),
+                        "-af", f"volume={gain * 0.5},afade=t=out:st={tl['total'] - 1.2}:d=1.2", "-ar", "44100", "-ac", "2",
                         os.path.join(d, "music.wav")], check=True)
     else:
-        print("  music: synthesized lofi bed (drop free tracks into Render\\music to use your own)")
+        print(f"  music: synthesized {g['name']} bed (add free tracks to music/{g['name']}/ to use your own)")
     py(CINEMA / "tools" / "mix.py", d, out_mp4)
