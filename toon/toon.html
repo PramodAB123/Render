@@ -1,10 +1,11 @@
 <!doctype html><html><head><meta charset="utf-8">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@600;800&display=block" rel="stylesheet">
+<script src="lib/gsap.min.js"></script>
 <style>html,body{margin:0;background:#000}canvas{display:block}</style></head><body>
 <canvas id="c" width="1080" height="1920"></canvas>
 <script>
-/* Toon engine: flat-vector 2D animated story, every frame drawn in code (original art, no external images).
+/* Toon engine: flat-vector 2D animated story, animated with GSAP timelines; every frame drawn in code (original art, no external images).
    window.init(timeline) then window.render(t). Timeline is written by pipeline/toon.py. */
 const C = document.getElementById('c'), X = C.getContext('2d');
 let W = 1080, H = 1920, TL = null, ST = {};
@@ -120,89 +121,138 @@ function pet(kind, cx, by, s, t) { X.save(); X.translate(cx, by + Math.sin(t * 2
   ell(0, -178, 40, 28, shade(c, 0.3)); ell(0, -192, 14, 10, '#1b1b22'); const bl = t % 4 < 0.12; for (const sx of [-30, 30]) bl ? X.fillRect(sx - 10, -232, 20, 5) : circ(sx, -228, 10, '#1b1b22');
   const wag = Math.sin(t * 9) * 0.5; X.save(); X.translate(110, -110); X.rotate(-0.8 + wag); rr(-10, -70, 22, 80, 11, d); X.restore(); X.restore(); }
 
+// ---------- motion: one GSAP master timeline drives every animated value ----------
+// The timeline is paused and seeked to the exact frame time, so every frame is deterministic.
+let MT = null, A = [], CAPS = [], FX = { shake: 0, flash: 0 };
+function chunksOf(s) { const words = s.text.split(/\s+/), per = 3, n = Math.ceil(words.length / per), out = [];
+  for (let k = 0; k < n; k++) out.push({ words: words.slice(k * per, k * per + per), t0: s.start + k * s.dur / n, t1: s.start + (k + 1) * s.dur / n, sc: 0.55, a: 0, y: 40 });
+  return out; }
+function buildMotion() {
+  const g = window.gsap; MT = g.timeline({ paused: true }); A = []; CAPS = [];
+  const TR = ['wipe', 'zoom', 'slide', 'iris'];
+  TL.segs.forEach((s, i) => { const st = s.start, d = s.dur, a = { cam: 1.12, camX: 0, rot: -0.015, charIn: 0, squash: 1.18, wipe: 0, tr: TR[i % TR.length],
+    chips: [0, 0, 0], card: 0, ticks: [0, 0, 0, 0], mapP: 0, pin: 0, msg: 0, type: 0, stat: 0, btn: [0, 0], vote: 0, q: 0 };
+    A.push(a);
+    // camera: punch in on the cut, then a slow drift for the rest of the line
+    MT.to(a, { cam: 1.0, rot: 0, duration: 0.7, ease: 'expo.out' }, st);
+    MT.to(a, { cam: 0.965, camX: (i % 2 ? 1 : -1) * 18, duration: Math.max(0.5, d - 0.4), ease: 'sine.inOut' }, st + 0.7);
+    // character pops in with a squash-and-stretch on every new shot
+    MT.to(a, { charIn: 1, duration: 0.55, ease: 'back.out(1.8)' }, st);
+    MT.to(a, { squash: 1, duration: 0.9, ease: 'elastic.out(1, 0.45)' }, st);
+    // scene transition out of the previous shot (wipe / zoom / slide / iris)
+    if (i > 0 && TL.segs[i - 1].shot !== s.shot) MT.fromTo(a, { wipe: 1 }, { wipe: 0, duration: 0.45, ease: 'power3.out', immediateRender: false }, st);
+    if (s.shot == 'chips') a.chips.forEach((_, k) => MT.to(a.chips, { [k]: 1, duration: 0.5, ease: 'back.out(2)' }, st + 0.2 + k * 0.35));
+    if (s.shot == 'checklist') { MT.to(a, { card: 1, duration: 0.6, ease: 'back.out(1.6)' }, st);
+      a.ticks.forEach((_, k) => { if (k < ((s.data && s.data.checked) ?? 1)) MT.to(a.ticks, { [k]: 1, duration: 0.35, ease: 'back.out(3)' }, st + 0.7 + k * 0.5); }); }
+    if (s.shot == 'map') { MT.to(a, { mapP: 1, duration: Math.max(0.8, d * 0.7), ease: 'power2.inOut' }, st + 0.15); MT.to(a, { pin: 1, duration: 0.8, ease: 'elastic.out(1, 0.4)' }, st + Math.max(0.8, d * 0.7)); }
+    if (s.shot == 'message') { MT.to(a, { msg: 1, duration: 0.5, ease: 'back.out(1.7)' }, st + 0.15); MT.to(a, { type: 1, duration: Math.max(0.6, d * 0.65), ease: 'none' }, st + 0.4); }
+    if (s.shot == 'stat') MT.to(a, { stat: 1, duration: Math.min(1.6, d * 0.7), ease: 'power3.out' }, st + 0.1);
+    if (s.shot == 'choice') { MT.to(a, { q: 1, duration: 0.5, ease: 'power3.out' }, st); MT.to(a.btn, { 0: 1, duration: 0.7, ease: 'elastic.out(1, 0.5)' }, st + 0.3); MT.to(a.btn, { 1: 1, duration: 0.7, ease: 'elastic.out(1, 0.5)' }, st + 0.5); MT.to(a, { vote: 1, duration: 0.6, ease: 'back.out(2.2)' }, st + 0.9); }
+    // captions: each 3-word chunk springs in; a keyword in the chunk kicks the camera
+    const hl = (s.hl || []).map(w => w.toUpperCase().replace(/[^A-Z0-9']/g, ''));
+    const cs = chunksOf(s); CAPS.push(cs);
+    cs.forEach(c => { MT.to(c, { sc: 1, a: 1, y: 0, duration: 0.35, ease: 'back.out(2.4)' }, c.t0);
+      if (c.words.some(w => hl.includes(w.toUpperCase().replace(/[^A-Z0-9']/g, '')))) { MT.fromTo(FX, { shake: 1 }, { shake: 0, duration: 0.45, ease: 'power2.out', immediateRender: false }, c.t0 + 0.05);
+        if (TL.style.flash) MT.fromTo(FX, { flash: 0.35 }, { flash: 0, duration: 0.3, immediateRender: false }, c.t0 + 0.05); } });
+  });
+  MT.to({}, { duration: 0.01 }, TL.total);   // make sure the timeline spans the whole video
+}
+
 // ---------- overlays / props ----------
-function hud(t, g) { const h = TL.hud || {}, s = g.s; const a = 0.92;
-  rr(40, 70, W - 80, 120, 28, `rgba(12,16,28,${a})`, 'rgba(255,255,255,.12)', 3);
+function hud(t, g) { const h = TL.hud || {}, s = g.s;
+  rr(40, 70, W - 80, 120, 28, 'rgba(12,16,28,.92)', 'rgba(255,255,255,.12)', 3);
   const clock = s.clock || ST.clock || ''; const [hm, ap] = clock.split(' ');
   txt(hm || '', 70, 132, 92, '#7dff8a', 'left'); X.font = `92px ${F}`; const cw = X.measureText(hm || '').width; txt(ap || '', 80 + cw, 150, 40, '#7dff8a', 'left');
   const x2 = 120 + cw + 50; txt(h.day || 'DAY 1', x2, 108, 38, '#ffd23f', 'left'); txt(`${s.temp || ST.temp || ''}   ·   ${h.location || ''}`, x2, 152, 34, '#e8ecf5', 'left');
-  // REC-like status dot
   circ(W - 90, 130, 14, (Math.floor(t * 2) % 2) ? '#ff2e3f' : '#7a1720');
-  const pw = pill(h.part || 'PART 1', 0, -999, 34, '#000', '#000'); // measure
-  X.font = `34px ${F}`; const tw = X.measureText(h.title || '').width;
-  const total = pw + 20 + tw, x0 = W / 2 - total / 2; pill(h.part || 'PART 1', x0 + pw / 2, 238, 34, '#ffd23f', '#111'); txt(h.title || '', x0 + pw + 20, 240, 34, '#fff', 'left'); }
-function caption(t, g) { const s = g.s; if (!s || s.shot == 'choice') return; const words = s.text.split(/\s+/); const per = 3;
-  const k = clamp(Math.floor((t - s.start) / s.dur * Math.ceil(words.length / per)), 0, Math.ceil(words.length / per) - 1);
-  const chunk = words.slice(k * per, k * per + per); const hl = (s.hl || []).map(w => w.toUpperCase().replace(/[^A-Z0-9']/g, ''));
-  const t0 = s.start + k * s.dur / Math.ceil(words.length / per), pop = back((t - t0) * 6); const y = H * 0.585;
-  X.save(); X.translate(W / 2, y); X.scale(0.7 + 0.3 * pop, 0.7 + 0.3 * pop);
-  const size = fit(chunk.join(' ').toUpperCase(), W - 140, 118); X.font = `${size}px ${F}`; let x = -X.measureText(chunk.join(' ').toUpperCase()).width / 2;
-  for (const w of chunk) { const up = w.toUpperCase(), ww = X.measureText(up + ' ').width, on = hl.includes(up.replace(/[^A-Z0-9']/g, ''));
+  X.font = `34px ${F}`; const pw = X.measureText(h.part || 'PART 1').width + 34 * 0.9, tw = X.measureText(h.title || '').width;
+  const x0 = W / 2 - (pw + 20 + tw) / 2; pill(h.part || 'PART 1', x0 + pw / 2, 238, 34, '#ffd23f', '#111'); txt(h.title || '', x0 + pw + 20, 240, 34, '#fff', 'left'); }
+function caption(t, g) { const s = g.s; if (!s || s.shot == 'choice') return; const cs = CAPS[g.seg]; if (!cs) return;
+  let c = cs[0]; for (const x of cs) if (t >= x.t0) c = x; const hl = (s.hl || []).map(w => w.toUpperCase().replace(/[^A-Z0-9']/g, ''));
+  const line = c.words.join(' ').toUpperCase(); X.save(); X.globalAlpha = clamp(c.a, 0, 1); X.translate(W / 2, H * 0.585 + c.y); X.scale(c.sc, c.sc);
+  const size = fit(line, W - 140, 118); X.font = `${size}px ${F}`; let x = -X.measureText(line).width / 2;
+  for (const w of c.words) { const up = w.toUpperCase(), ww = X.measureText(up + ' ').width, on = hl.includes(up.replace(/[^A-Z0-9']/g, ''));
     X.lineWidth = 16; X.strokeStyle = 'rgba(0,0,0,.9)'; X.textAlign = 'left'; X.textBaseline = 'middle'; X.strokeText(up, x, 0);
-    if (on) { const bw = X.measureText(up).width; rr(x - 10, -size * 0.5, bw + 20, size * 0.95, 10, TL.style.accent); }
+    if (on) { const bw = X.measureText(up).width; X.save(); X.translate(x + bw / 2, 0); X.rotate(-0.035); rr(-bw / 2 - 12, -size * 0.5, bw + 24, size * 0.95, 10, TL.style.accent); X.restore(); }
     X.fillStyle = '#fff'; X.fillText(up, x, 0); x += ww; }
   X.restore(); }
-function chipsShot(t, g, items) { items.forEach((it, i) => { const a = ease((g.segT - i * 0.35) * 3); if (a <= 0) return; X.globalAlpha = a;
-  const y = H * 0.36 + i * 120; const x = W / 2 + (1 - a) * -80; X.font = `64px ${F}`; const w = X.measureText(it).width + 120;
-  rr(x - w / 2, y - 48, w, 96, 48, 'rgba(10,14,24,.88)', TL.style.hl, 5); circ(x - w / 2 + 50, y, 16, TL.style.hl); txt(it, x + 18, y + 3, 64, '#fff'); X.globalAlpha = 1; }); }
-function checklistShot(t, g, d) { const items = d.items || [], a = ease(g.segT * 3); X.save(); X.translate(W / 2, H * 0.4 + (1 - a) * 60); X.rotate(-0.03); X.globalAlpha = a;
+function chipsShot(t, a, items) { items.forEach((it, i) => { const p = a.chips[i] || 0; if (p <= 0.001) return;
+  const y = H * 0.36 + i * 120, x = W / 2 - (1 - p) * 240; X.save(); X.globalAlpha = clamp(p, 0, 1); X.translate(x, y); X.scale(clamp(p, 0, 1.3), clamp(p, 0, 1.3));
+  X.font = `64px ${F}`; const w = X.measureText(it).width + 120; rr(-w / 2, -48, w, 96, 48, 'rgba(10,14,24,.9)', TL.style.hl, 5); circ(-w / 2 + 50, 0, 16, TL.style.hl); txt(it, 18, 3, 64, '#fff'); X.restore(); }); }
+function checklistShot(t, a, d) { const items = d.items || []; if (a.card <= 0.001) return; X.save(); X.translate(W / 2, H * 0.4 + (1 - a.card) * 220); X.rotate(-0.03 * a.card); X.scale(a.card, a.card); X.globalAlpha = clamp(a.card, 0, 1);
   rr(-380, -300, 760, 140 + items.length * 110, 26, '#f3ecd9'); rr(-140, -330, 280, 60, 12, '#c9bfa6'); txt((d.title || 'THE PLAN').toUpperCase(), 0, -230, 70, '#b3262f');
-  items.forEach((it, i) => { const y = -120 + i * 110; rr(-320, y - 34, 68, 68, 12, '#fff', '#222', 6); const done = i < (d.checked != null ? d.checked : 1) && g.segT > 0.4 + i * 0.5;
-    if (done) { X.strokeStyle = '#1f9d55'; X.lineWidth = 12; X.beginPath(); X.moveTo(-308, y); X.lineTo(-290, y + 20); X.lineTo(-262, y - 22); X.stroke(); } txt(String(it).toUpperCase(), -220, y + 4, 70, '#1a1a1a', 'left'); });
+  items.forEach((it, i) => { const y = -120 + i * 110, k = a.ticks[i] || 0; rr(-320, y - 34, 68, 68, 12, '#fff', '#222', 6);
+    if (k > 0.01) { X.save(); X.translate(-286, y); X.scale(k, k); X.strokeStyle = '#1f9d55'; X.lineWidth = 12; X.lineCap = 'round'; X.beginPath(); X.moveTo(-22, 0); X.lineTo(-4, 20); X.lineTo(24, -22); X.stroke(); X.restore(); }
+    txt(String(it).toUpperCase(), -220, y + 4, 70, '#1a1a1a', 'left'); });
   X.restore(); X.globalAlpha = 1; }
-function mapShot(t, g, d) { X.fillStyle = '#0d1b2e'; X.fillRect(0, 0, W, H); X.strokeStyle = 'rgba(120,170,220,.18)'; X.lineWidth = 3;
-  for (let r = 0; r < 16; r++) { X.beginPath(); for (let a = 0; a <= 64; a++) { const ang = a / 64 * Math.PI * 2, rad = 80 + r * 55 + 30 * Math.sin(ang * 3 + r); X.lineTo(W * 0.55 + Math.cos(ang) * rad * 1.2, H * 0.48 + Math.sin(ang) * rad); } X.stroke(); }
+function mapShot(t, a, d) { X.fillStyle = '#0d1b2e'; X.fillRect(0, 0, W, H); X.strokeStyle = 'rgba(120,170,220,.18)'; X.lineWidth = 3;
+  for (let r = 0; r < 16; r++) { X.beginPath(); for (let q = 0; q <= 64; q++) { const ang = q / 64 * Math.PI * 2, rad = 80 + r * 55 + 30 * Math.sin(ang * 3 + r); X.lineTo(W * 0.55 + Math.cos(ang) * rad * 1.2, H * 0.48 + Math.sin(ang) * rad); } X.stroke(); }
   const pts = [[W * 0.12, H * 0.72], [W * 0.3, H * 0.62], [W * 0.42, H * 0.66], [W * 0.58, H * 0.5], [W * 0.66, H * 0.42], [W * 0.82, H * 0.36]];
-  const k = ease(g.segT * 1.4) * (pts.length - 1); X.strokeStyle = 'rgba(0,0,0,.5)'; X.lineWidth = 22; X.lineJoin = 'round'; X.beginPath(); pts.forEach((p, i) => i ? X.lineTo(...p) : X.moveTo(...p)); X.stroke();
-  X.strokeStyle = TL.style.hl; X.lineWidth = 12; X.beginPath(); X.moveTo(...pts[0]); for (let i = 1; i <= Math.floor(k); i++) X.lineTo(...pts[i]); const f = k - Math.floor(k), i0 = Math.floor(k); if (i0 < pts.length - 1) X.lineTo(pts[i0][0] + (pts[i0 + 1][0] - pts[i0][0]) * f, pts[i0][1] + (pts[i0 + 1][1] - pts[i0][1]) * f); X.stroke();
-  txt((d.from || 'START').toUpperCase(), pts[0][0], pts[0][1] + 60, 44, '#cfe0f5'); const e = pts[pts.length - 1], pa = ease((g.segT - 0.7) * 3);
-  if (pa > 0) { X.globalAlpha = pa; X.fillStyle = TL.style.accent; X.beginPath(); X.arc(e[0], e[1] - 60, 34, Math.PI, 0); X.lineTo(e[0], e[1]); X.closePath(); X.fill(); circ(e[0], e[1] - 62, 12, '#fff'); pill((d.to || 'HERE').toUpperCase(), e[0] - 60, e[1] - 140, 48, 'rgba(10,14,24,.9)', '#fff', TL.style.hl); X.globalAlpha = 1; } }
-function messageShot(t, g, d) { const a = ease(g.segT * 3); rr(W * 0.18, H * 0.27, W * 0.64, 250, 30, '#2a2d34', '#111', 8); rr(W * 0.22, H * 0.29, 260, 160, 16, '#0e2a12');
+  const k = a.mapP * (pts.length - 1); X.strokeStyle = 'rgba(0,0,0,.5)'; X.lineWidth = 22; X.lineJoin = 'round'; X.lineCap = 'round'; X.beginPath(); pts.forEach((p, i) => i ? X.lineTo(...p) : X.moveTo(...p)); X.stroke();
+  X.strokeStyle = TL.style.hl; X.lineWidth = 12; X.beginPath(); X.moveTo(...pts[0]); const i0 = Math.floor(k); for (let i = 1; i <= i0; i++) X.lineTo(...pts[i]); const f = k - i0;
+  let head = pts[Math.min(i0, pts.length - 1)]; if (i0 < pts.length - 1) { head = [pts[i0][0] + (pts[i0 + 1][0] - pts[i0][0]) * f, pts[i0][1] + (pts[i0 + 1][1] - pts[i0][1]) * f]; X.lineTo(...head); } X.stroke();
+  if (a.mapP > 0.01 && a.mapP < 0.99) { circ(head[0], head[1], 22 + 6 * Math.sin(t * 10), 'rgba(255,210,63,.35)'); circ(head[0], head[1], 12, TL.style.hl); }
+  txt((d.from || 'START').toUpperCase(), pts[0][0], pts[0][1] + 60, 44, '#cfe0f5'); const e = pts[pts.length - 1], p = a.pin;
+  if (p > 0.01) { X.save(); X.translate(e[0], e[1]); X.scale(p, p); X.fillStyle = TL.style.accent; X.beginPath(); X.arc(0, -60, 34, Math.PI, 0); X.lineTo(0, 0); X.closePath(); X.fill(); circ(0, -62, 12, '#fff'); X.restore();
+    X.globalAlpha = clamp(p, 0, 1); pill((d.to || 'HERE').toUpperCase(), e[0] - 60, e[1] - 140 - (1 - clamp(p, 0, 1)) * 30, 48, 'rgba(10,14,24,.9)', '#fff', TL.style.hl); X.globalAlpha = 1; } }
+function messageShot(t, a, d) { rr(W * 0.18, H * 0.27, W * 0.64, 250, 30, '#2a2d34', '#111', 8); rr(W * 0.22, H * 0.29, 260, 160, 16, '#0e2a12');
   txt(d.channel || '19', W * 0.22 + 130, H * 0.29 + 85, 130, '#7dff8a'); circ(W * 0.66, H * 0.33, 40, '#3c4048'); circ(W * 0.76, H * 0.33, 40, '#3c4048');
-  if (g.segT > 0.25) { const full = String(d.text || '...'), n = Math.floor(clamp((g.segT - 0.25) * 1.5, 0, 1) * full.length); X.globalAlpha = a;
-    rr(W * 0.1, H * 0.42, W * 0.8, 230, 22, 'rgba(8,20,12,.92)', '#7dff8a', 4); txt('● ' + (d.from || 'RADIO').toUpperCase(), W * 0.14, H * 0.42 + 42, 36, '#ff5a5a', 'left');
-    const words = ('"' + full.slice(0, n) + (n < full.length ? '▍' : '"')).split(' '); let line = '', y = H * 0.42 + 105; X.font = `600 44px ${FI}`;
-    for (const w of words) { if (X.measureText(line + w).width > W * 0.7) { txt(line, W * 0.14, y, 44, '#fff', 'left', `600 ${FI}`); line = ''; y += 56; } line += w + ' '; } txt(line, W * 0.14, y, 44, '#fff', 'left', `600 ${FI}`); X.globalAlpha = 1; } }
-function statShot(t, g, d) { const a = ease(g.segT * 2.5); const v = String(d.value || ''); const num = parseFloat(v.replace(/[^0-9.]/g, '')); let shown = v;
-  if (!isNaN(num) && num > 1) { const cur = Math.round(num * a); shown = v.replace(/[0-9.,]+/, cur.toLocaleString()); }
-  X.globalAlpha = a; txt(shown, W / 2, H * 0.36, fit(shown, W - 120, 260), TL.style.hl); txt(String(d.label || '').toUpperCase(), W / 2, H * 0.47, 70, '#fff'); X.globalAlpha = 1; }
-function choiceShot(t, g) { const c = TL.choice || {}; X.fillStyle = 'rgba(0,0,0,.6)'; X.fillRect(0, 0, W, H); const a = ease(g.segT * 2.5);
-  txt(String(c.question || 'WHAT WOULD YOU DO?').toUpperCase(), W / 2, H * 0.36, fit(String(c.question || '').toUpperCase(), W - 120, 76), '#fff');
-  const pop = back(g.segT * 2.2); X.save(); X.translate(W / 2, H * 0.46); X.scale(pop, pop); pill(String(c.a || 'YES').toUpperCase(), -230, 0, 96, '#f6f6f6', '#111', '#000'); pill(String(c.b || 'NO').toUpperCase(), 230, 0, 96, '#f6f6f6', '#111', '#000'); X.restore();
-  if (g.segT > 0.4) { X.globalAlpha = ease((g.segT - 0.4) * 3); txt('VOTE IN THE', W / 2, H * 0.57, 70, '#fff'); txt('COMMENTS', W / 2, H * 0.63, 130, TL.style.accent); X.globalAlpha = 1; } }
+  for (let b = 0; b < 12; b++) rr(W * 0.62 + b * 14, H * 0.405 - Math.abs(Math.sin(t * 9 + b)) * 30 * a.type * (1 - a.type + 0.2), 8, 10 + Math.abs(Math.sin(t * 9 + b)) * 30 * a.type, 3, '#7dff8a');
+  if (a.msg > 0.01) { const full = String(d.text || '...'), n = Math.floor(clamp(a.type, 0, 1) * full.length); X.save(); X.globalAlpha = clamp(a.msg, 0, 1); X.translate(0, (1 - a.msg) * 80);
+    rr(W * 0.1, H * 0.44, W * 0.8, 230, 22, 'rgba(8,20,12,.92)', '#7dff8a', 4); txt('● ' + (d.from || 'RADIO').toUpperCase(), W * 0.14, H * 0.44 + 42, 36, '#ff5a5a', 'left');
+    const words = ('"' + full.slice(0, n) + (n < full.length ? '▍' : '"')).split(' '); let line = '', y = H * 0.44 + 105; X.font = `600 44px ${FI}`;
+    for (const w of words) { if (X.measureText(line + w).width > W * 0.7) { txt(line, W * 0.14, y, 44, '#fff', 'left', `600 ${FI}`); line = ''; y += 56; } line += w + ' '; } txt(line, W * 0.14, y, 44, '#fff', 'left', `600 ${FI}`); X.restore(); } }
+function statShot(t, a, d) { const v = String(d.value || ''); const num = parseFloat(v.replace(/[^0-9.]/g, '')); let shown = v;
+  if (!isNaN(num) && num > 1) shown = v.replace(/[0-9.,]+/, Math.round(num * clamp(a.stat, 0, 1)).toLocaleString());
+  X.save(); X.globalAlpha = clamp(a.stat * 1.5, 0, 1); X.translate(W / 2, H * 0.36); const sc = 0.6 + 0.4 * a.stat; X.scale(sc, sc); txt(shown, 0, 0, fit(shown, W - 120, 260), TL.style.hl); X.restore();
+  X.globalAlpha = clamp(a.stat * 1.5 - 0.3, 0, 1); txt(String(d.label || '').toUpperCase(), W / 2, H * 0.47, 70, '#fff'); X.globalAlpha = 1; }
+function choiceShot(t, a) { const c = TL.choice || {}; X.fillStyle = `rgba(0,0,0,${0.62 * a.q})`; X.fillRect(0, 0, W, H);
+  const qs = String(c.question || 'WHAT WOULD YOU DO?').toUpperCase(); X.globalAlpha = clamp(a.q, 0, 1); txt(qs, W / 2, H * 0.36 - (1 - a.q) * 40, fit(qs, W - 120, 76), '#fff'); X.globalAlpha = 1;
+  [[String(c.a || 'YES'), -230], [String(c.b || 'NO'), 230]].forEach(([s, dx], k) => { const p = a.btn[k]; if (p <= 0.001) return; X.save(); X.translate(W / 2 + dx, H * 0.46); X.scale(p, p); pill(s.toUpperCase(), 0, 0, 96, '#f6f6f6', '#111', '#000'); X.restore(); });
+  if (a.vote > 0.01) { X.save(); X.translate(W / 2, H * 0.6); X.scale(a.vote, a.vote); txt('VOTE IN THE', 0, -50, 70, '#fff'); txt('COMMENTS', 0, 40, 130 + 6 * Math.sin(t * 5), TL.style.accent); X.restore(); } }
 function vignette(k) { const g = X.createRadialGradient(W / 2, H / 2, H * 0.25, W / 2, H / 2, H * 0.72); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(0,0,0,${k})`); X.fillStyle = g; X.fillRect(0, 0, W, H); }
+function transition(a) { if (a.wipe <= 0.001) return; const p = a.wipe; X.fillStyle = TL.style.accent;
+  if (a.tr == 'wipe') { X.beginPath(); X.moveTo(W * (1 - p) * 1.6 - W * 0.3, 0); X.lineTo(W * 1.4, 0); X.lineTo(W * 1.4, H); X.lineTo(W * (1 - p) * 1.6 - W * 0.6, H); X.fill(); X.fillStyle = '#0b0d14'; X.beginPath(); X.moveTo(W * (1 - p) * 1.6 - W * 0.15, 0); X.lineTo(W * 1.4, 0); X.lineTo(W * 1.4, H); X.lineTo(W * (1 - p) * 1.6 - W * 0.45, H); X.fill(); }
+  else if (a.tr == 'slide') { X.fillStyle = '#0b0d14'; X.fillRect(0, 0, W, H * p * 0.5); X.fillRect(0, H - H * p * 0.5, W, H * p * 0.5); }
+  else if (a.tr == 'iris') { X.save(); X.beginPath(); X.rect(0, 0, W, H); X.arc(W / 2, H * 0.5, Math.max(1, (1 - p) * H), 0, Math.PI * 2, true); X.fillStyle = '#05060a'; X.fill('evenodd'); X.restore(); }
+  else { X.fillStyle = `rgba(255,255,255,${0.5 * p})`; X.fillRect(0, 0, W, H); } }
 
 // ---------- frame ----------
 function segAt(t) { let i = 0; TL.segs.forEach((s, k) => { if (t >= s.start - 0.12) i = k; }); return i; }
-function drawShot(t, g) { const s = g.s, cast = TL.cast || [], st = { tod: s.time_of_day || 'night', weather: s.weather || 'clear' };
-  const place = PLACES[s.place] || PLACES.road; const push = 1 + 0.035 * g.segT, cut = 1 + 0.05 * (1 - ease(g.segT * 4));
-  X.save(); X.translate(W / 2, H / 2); X.scale(push * cut, push * cut); X.translate(-W / 2, -H / 2);
-  if (s.shot == 'map') mapShot(t, g, s.data || {});
+function drawShot(t, g) { const s = g.s, a = A[g.seg], cast = TL.cast || [], st = { tod: s.time_of_day || 'night', weather: s.weather || 'clear' };
+  const place = PLACES[s.place] || PLACES.road; const z = a.cam * (a.tr == 'zoom' ? 1 + 0.25 * a.wipe : 1), sh = FX.shake * 14;
+  X.save(); X.translate(W / 2 + a.camX + Math.sin(t * 60) * sh, H / 2 + Math.cos(t * 53) * sh); X.rotate(a.rot); X.scale(z, z); X.translate(-W / 2, -H / 2);
+  if (s.shot == 'map') mapShot(t, a, s.data || {});
   else if (s.shot == 'black') { X.fillStyle = '#040407'; X.fillRect(0, 0, W, H); }
   else { place(t, st); weather(t, st);
     const showChar = ['char', 'chips', 'checklist', 'choice', 'stat'].includes(s.shot) || !s.shot;
-    if (showChar && cast.length) { const who = cast.find(c => c.name == s.speaker) || cast[0], other = cast.find(c => c !== who && c.name != 'narrator');
-      const big = s.shot == 'char' || !s.shot, sc = big ? 1.45 : 1.05, by = big ? H * 0.99 : H * 1.03;
-      if (other && s.shot == 'char' && TL.segs.some(x => x.speaker == other.name)) character(other, W * 0.8, by + 40, sc * 0.78, t, false, other.emo || 'calm', 2);
-      character(who, other && s.shot == 'char' ? W * 0.38 : W * 0.5, by, sc, t, s.speaker == who.name, s.emotion || 'calm', 1);
-      if (who.pet && who.pet != 'none') pet(who.pet, W * 0.84, H * 0.985, big ? 1.1 : 0.85, t); } }
+    if (showChar && cast.length) { const who = cast.find(c => c.name == s.speaker) || cast[0], other = cast.find(c => c !== who);
+      const big = s.shot == 'char' || !s.shot, sc = big ? 1.45 : 1.05, by = (big ? H * 0.99 : H * 1.03) + (1 - a.charIn) * 420;
+      X.save(); X.translate(W / 2, by); X.scale(1 / a.squash, a.squash); X.translate(-W / 2, -by);
+      if (other && big && TL.segs.some(x => x.speaker == other.name)) character(other, W * 0.8, by + 40, sc * 0.78, t, false, 'calm', 2);
+      character(who, other && big && TL.segs.some(x => x.speaker == other.name) ? W * 0.38 : W * 0.5, by, sc, t, s.speaker == who.name, s.emotion || 'calm', 1);
+      X.restore();
+      if (who.pet && who.pet != 'none') pet(who.pet, W * 0.84, H * 0.985 + (1 - a.charIn) * 300, big ? 1.1 : 0.85, t); } }
   X.restore();
-  if (s.shot == 'chips') chipsShot(t, g, (s.data && s.data.items) || []);
-  if (s.shot == 'checklist') checklistShot(t, g, s.data || {});
-  if (s.shot == 'message') messageShot(t, g, s.data || {});
-  if (s.shot == 'stat') statShot(t, g, s.data || {});
-  if (s.shot == 'choice') choiceShot(t, g);
+  if (s.shot == 'chips') chipsShot(t, a, (s.data && s.data.items) || []);
+  if (s.shot == 'checklist') checklistShot(t, a, s.data || {});
+  if (s.shot == 'message') messageShot(t, a, s.data || {});
+  if (s.shot == 'stat') statShot(t, a, s.data || {});
+  if (s.shot == 'choice') choiceShot(t, a);
   vignette(0.55);
-  if (st.tod == 'night' && s.shot != 'map') { X.fillStyle = 'rgba(10,15,45,.18)'; X.fillRect(0, 0, W, H); } }
-window.render = function (t) { const i = segAt(t), s = TL.segs[i];
+  if (st.tod == 'night' && s.shot != 'map') { X.fillStyle = 'rgba(10,15,45,.18)'; X.fillRect(0, 0, W, H); }
+  transition(a); }
+window.render = function (t) { MT.seek(t, false); const i = segAt(t), s = TL.segs[i];
   for (let k = 0; k <= i; k++) { const x = TL.segs[k]; if (x.clock) ST.clock = x.clock; if (x.temp) ST.temp = x.temp; }
   const g = { s, seg: i, segT: Math.max(0, t - s.start + 0.12), segDur: s.dur };
   X.setTransform(1, 0, 0, 1, 0, 0); X.clearRect(0, 0, W, H); drawShot(t, g); hud(t, g); caption(t, g);
-  // grain + fade in/out
+  if (FX.flash > 0.001) { X.fillStyle = `rgba(255,255,255,${FX.flash})`; X.fillRect(0, 0, W, H); }
   const f = Math.floor(t * 24); for (let n = 0; n < 260; n++) { X.fillStyle = `rgba(255,255,255,${0.05 * rnd(n * 3 + f)})`; X.fillRect(rnd(n * 7 + f) * W, rnd(n + f * 997) * H, 3, 3); }
   const fade = Math.min(clamp(t / 0.4, 0, 1), clamp((TL.total - t) / 0.6, 0, 1)); if (fade < 1) { X.fillStyle = `rgba(0,0,0,${1 - fade})`; X.fillRect(0, 0, W, H); } };
 window.init = async function (tl) { TL = tl; TL.style = Object.assign({ accent: '#e0262f', hl: '#ffd23f' }, tl.style || {});
+  if (!window.gsap) throw new Error('GSAP did not load (lib/gsap.min.js)');
+  gsap.ticker.lagSmoothing(0); buildMotion();
   try { await document.fonts.load(`100px "Bebas Neue"`); await document.fonts.load(`600 40px Inter`); } catch (e) {}
-  window.ready = true; return true; };
+  return true; };
 window.ready = true;
 </script></body></html>

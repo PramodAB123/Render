@@ -66,6 +66,11 @@ written by Ollama in parts (outline first, then each chapter), subtitles at the 
   stats, pop-in captions with red keywords, and a two-button "vote in the comments" end card. Narrator uses the genre
   voice; every character gets its own free Edge voice, and each line's emotion changes speed and pitch. All drawn in
   code by `toon/toon.html` (about 3 minutes of rendering per minute of video), no AI images needed.
+  Motion is driven by **GSAP** (free "no charge" license, installed from npm): one master timeline per video with
+  expo/back/elastic easing for camera punch-ins and drift, squash-and-stretch character entrances, wipe / zoom /
+  slide / iris scene transitions, spring-in captions with a camera shake on keywords, staggered chips and checklist
+  ticks, a self-drawing map route with a bouncing pin, typed radio messages and elastic vote buttons. The timeline
+  is paused and seeked to each frame's time, so renders are frame-exact.
 - `cinema`: the 3D code-rendered room (Shorts only).
 
 **AI images**: model `Lykon/dreamshaper-8-lcm` (Stable Diffusion 1.5 fine-tune), license CreativeML OpenRAIL-M, which

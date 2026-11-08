@@ -2,8 +2,9 @@
 // Serves toon/ over http, loads <projectDir>/toon.json, draws every frame in headless Chromium -> <projectDir>/video.mp4
 const {chromium} = require('playwright'); const fs = require('fs'), path = require('path'), http = require('http'); const {spawn} = require('child_process');
 const ENG = __dirname, PROJ = path.resolve(process.argv[2] || '.'), mode = process.argv[3];
-const srv = http.createServer((q, r) => { const f = path.join(ENG, decodeURIComponent(q.url.split('?')[0])); if (!f.startsWith(ENG) || !fs.existsSync(f)) { r.writeHead(404); return r.end(); }
-  r.writeHead(200, {'Content-Type': f.endsWith('.html') ? 'text/html' : 'application/octet-stream'}); fs.createReadStream(f).pipe(r); });
+const LIBS = {'/lib/gsap.min.js': path.join(ENG, '..', 'node_modules', 'gsap', 'dist', 'gsap.min.js')};   // GSAP comes from npm (package.json)
+const srv = http.createServer((q, r) => { const u = decodeURIComponent(q.url.split('?')[0]); const f = LIBS[u] || path.join(ENG, u); if ((!LIBS[u] && !f.startsWith(ENG)) || !fs.existsSync(f)) { r.writeHead(404); return r.end(); }
+  r.writeHead(200, {'Content-Type': f.endsWith('.html') ? 'text/html' : f.endsWith('.js') ? 'text/javascript' : 'application/octet-stream'}); fs.createReadStream(f).pipe(r); });
 (async () => {
   await new Promise(r => srv.listen(0, r)); const port = srv.address().port;
   const tl = JSON.parse(fs.readFileSync(path.join(PROJ, 'toon.json'), 'utf8'));
