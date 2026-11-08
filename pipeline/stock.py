@@ -80,7 +80,9 @@ def _ken_burns(i, W, H, fps, n):
 def render(tl, d, g, size, visuals="stock"):
     """visuals: stock | ai | mix. Writes d/video.mp4 with captions."""
     W, H = size; portrait = H > W; fps = load_config()["video"]["fps"]; S = tl["segs"]; used = set(); parts = []
-    max_ai = load_config()["image"].get("max_images", 24); ai_count = 0
+    ic = load_config()["image"]; max_ai = ic.get("max_images_mix", 10) if visuals == "mix" else ic.get("max_images", 24)
+    planned = min(max_ai, sum(1 for i in range(len(S)) if visuals == "ai" or i % 2 == 0)) if visuals in ("ai", "mix") else 0
+    ai_count = 0
     for i, s in enumerate(S):
         a = 0 if i == 0 else S[i]["start"]; b = S[i + 1]["start"] if i + 1 < len(S) else tl["total"]; ln = round(b - a, 3)
         n = max(1, int(round(ln * fps))); part = os.path.join(d, f"part{i}.mp4"); parts.append(part)
@@ -92,7 +94,10 @@ def render(tl, d, g, size, visuals="stock"):
                 import imagegen
                 t0 = time.time()
                 imagegen.generate(s.get("image") or s.get("visual") or s["text"], img, portrait, g.get("image_style", ""), seed=i)
-                ai_count += 1; print(f"  scene {i}: AI image in {time.time() - t0:.0f}s  ({(s.get('image') or s.get('visual') or '')[:60]})")
+                ai_count += 1; dt = time.time() - t0
+                print(f"  scene {i}/{len(S)}: AI image {ai_count}/{planned} in {dt:.0f}s  ({(s.get('image') or s.get('visual') or '')[:60]})")
+                if ai_count == 1 and planned > 1:
+                    print(f"  (about {dt * (planned - 1) / 60:.0f} more minutes for the remaining AI images)")
                 src = ["-i", img]; vf = _ken_burns(i, W, H, fps, n) + ",setsar=1," + grade
             except Exception as e:
                 print(f"  scene {i}: AI image failed ({type(e).__name__}: {str(e)[:100]}) - using stock footage")

@@ -36,6 +36,9 @@ jobs:
     timeout-minutes: 120   # safety cap so a stuck run can't use up your free minutes
     env:
       LLM_MODEL: llama3.2:3b
+      PYTHONUNBUFFERED: "1"          # show progress lines live in the log
+      HF_HUB_DISABLE_PROGRESS_BARS: "1"
+      TRANSFORMERS_VERBOSITY: error
       OLLAMA_MODELS: /home/runner/.ollama/models
       BROWSER_CHANNEL: ""            # use Playwright's bundled Chromium instead of Edge
       YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
@@ -71,13 +74,15 @@ jobs:
         if: ${{ inputs.mode == 'ai' || inputs.mode == 'mix' }}
         run: pip install -q torch --index-url https://download.pytorch.org/whl/cpu && pip install -q diffusers transformers accelerate safetensors
 
-      - name: Cache the AI image model
+      - name: Restore the AI image model from cache
+        id: hfcache
         if: ${{ inputs.mode == 'ai' || inputs.mode == 'mix' }}
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with: { path: /home/runner/.cache/huggingface, key: "hf-dreamshaper-8-lcm" }
 
-      - name: Cache Ollama (program + model)
-        uses: actions/cache@v4
+      - name: Restore Ollama (program + model) from cache
+        id: ollamacache
+        uses: actions/cache/restore@v4
         with:
           path: |
             /home/runner/.ollama/models
@@ -127,6 +132,21 @@ jobs:
             if [ -n "$YT_REFRESH_TOKEN" ]; then ARGS+=(--upload); else echo "No YT_REFRESH_TOKEN secret yet - skipping upload"; fi
           fi
           python run.py "${ARGS[@]}"
+
+      # Saved even if the run fails or is cancelled, so the big downloads happen only once
+      - name: Save the AI image model to cache
+        if: ${{ always() && (inputs.mode == 'ai' || inputs.mode == 'mix') && steps.hfcache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with: { path: /home/runner/.cache/huggingface, key: "hf-dreamshaper-8-lcm" }
+
+      - name: Save Ollama to cache
+        if: ${{ always() && steps.ollamacache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            /home/runner/.ollama/models
+            /home/runner/ollama-bin
+          key: "ollama-v2-${{ env.LLM_MODEL }}"
 
       - name: Keep the video (download from the run page for 14 days)
         if: always()
