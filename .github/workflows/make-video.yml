@@ -13,10 +13,15 @@ on:
         type: choice
         options: [horror, comedy, science, motivation, mystery, history]
       length:
-        description: "Short = vertical YouTube Short (~30 s). Minutes = 16:9 narrated video"
-        default: "short"
+        description: "Video length"
+        default: "30 sec"
         type: choice
-        options: [short, 1 min, 3 min, 5 min, 10 min]
+        options: [30 sec, 1 min, 3 min, 5 min, 10 min]
+      orientation:
+        description: "portrait 9:16 (Shorts / Reels) or landscape 16:9 (normal YouTube video)"
+        default: "portrait"
+        type: choice
+        options: [portrait, landscape]
       mode:
         description: "Visuals: stock clips, ai images, mix, doc (documentary look), 2d (animated cartoon story), or cinema (3D room, Shorts only)"
         default: "stock"
@@ -121,12 +126,13 @@ jobs:
       - name: Make the video
         env:
           MODE: ${{ inputs.mode || 'stock' }}
-          LENGTH: ${{ inputs.length || 'short' }}
+          LENGTH: ${{ inputs.length || '30 sec' }}
+          ORIENTATION: ${{ inputs.orientation || 'portrait' }}
           GENRE: ${{ inputs.genre || 'rotate' }}   # daily runs rotate through all genres
           IDEA: ${{ inputs.idea }}
           WANT_UPLOAD: ${{ github.event_name == 'schedule' || inputs.upload }}
         run: |
-          ARGS=(--genre "$GENRE" --mode "$MODE" --length "$LENGTH")
+          ARGS=(--genre "$GENRE" --mode "$MODE" --length "$LENGTH" --orientation "$ORIENTATION")
           if [ -n "$IDEA" ]; then ARGS+=(--idea "$IDEA"); fi
           if [ "$WANT_UPLOAD" = "true" ]; then
             if [ -n "$YT_REFRESH_TOKEN" ]; then ARGS+=(--upload); else echo "No YT_REFRESH_TOKEN secret yet - skipping upload"; fi
