@@ -71,69 +71,160 @@ Reply with JSON only:
 {{"title": "under 70 chars, curiosity title", "description": "3 sentences", "tags": ["8-12 tags"],
   "thumb_text": "2-4 WORDS", "chapters": [{{"heading": "...", "summary": "2 sentences of what happens"}}]}}"""
 
-CHAPTER = """You are writing the narration of a {minutes}-minute {genre} YouTube video titled "{title}".
+CHAPTER = """You are the narrator of a {minutes}-minute {genre} YouTube video titled "{title}".
 Style: {tone}
-Full plan: {plan}
-Now write chapter {n} of {total}: "{heading}" - {summary}
+Story plan: {plan}
+Write chapter {n} of {total}: "{heading}" - {summary}
 {prev}
-Write about {words} words of narration as {lines} lines, each line 10-22 words, spoken naturally.
-{extra}
-For every line also give:
- "visual": a 2-3 word stock-footage search ({visual_hint}),
- "image": a vivid one-sentence description of the scene for an AI image generator (subject, setting, lighting, camera angle; no text, no words),
- "hl": one key word from the line.
-Reply with JSON only: {{"lines": [{{"say": "...", "visual": "...", "image": "...", "hl": "..."}}]}}"""
+Write AT LEAST {words} words of spoken narration for this chapter. Use vivid, concrete details, short paragraphs,
+and keep the story moving. {extra}
+Write only the narration text itself: no headings, no labels, no lists, no stage directions."""
 
-WPM = 150  # narration speed
+MORE = """Continue the narration of chapter {n} ("{heading}") directly from where it stops below. Add about {words} more words
+in the same voice and style, moving the chapter forward. Write only narration text, nothing else.
+
+Narration so far:
+{text}"""
+
+VISUALS = """For each numbered narration line of a {genre} video, give footage ideas.
+"visual": a 2-3 word stock-footage search ({visual_hint}).
+"image": one vivid sentence describing the scene for an AI image generator (subject, setting, lighting, camera angle; no text).
+"hl": the single most important word of that line.
+Lines:
+{numbered}
+Reply with JSON only: {{"scenes": [{{"n": 1, "visual": "...", "image": "...", "hl": "..."}}]}} with exactly {count} scenes."""
+
+WPM = 150  # narration speed (words per minute)
 
 
-def _ollama(prompt, num_predict=2048):
+def _ollama(prompt, num_predict=2048, as_json=True):
     cfg = load_config()["llm"]
-    r = requests.post(f'{cfg["host"]}/api/generate', json={
-        "model": os.environ.get("LLM_MODEL", cfg["model"]), "prompt": prompt, "format": "json", "stream": False,
-        "options": {"temperature": 0.85, "num_ctx": 8192, "num_predict": num_predict}}, timeout=1200)
+    body = {"model": os.environ.get("LLM_MODEL", cfg["model"]), "prompt": prompt, "stream": False,
+            "options": {"temperature": 0.85, "num_ctx": 8192, "num_predict": num_predict, "repeat_penalty": 1.1}}
+    if as_json:
+        body["format"] = "json"
+    r = requests.post(f'{cfg["host"]}/api/generate', json=body, timeout=1800)
     r.raise_for_status()
-    return json.loads(r.json()["response"])
+    out = r.json()["response"]
+    return json.loads(out) if as_json else out.strip()
+
+
+LABELS = ("chapter", "narrator", "title", "here is", "here's", "(", "[")
+
+
+def _clean(text):
+    """Drop headings/labels the model sometimes adds; keep plain narration."""
+    keep = []
+    for ln in text.replace("\r", "").split("\n"):
+        t = ln.strip().strip("*#").strip()
+        if not t or (t.lower().startswith(LABELS) and len(t.split()) < 8):
+            continue
+        keep.append(t.strip('"'))
+    return " ".join(keep)
+
+
+def _to_lines(text, lo=10, hi=24):
+    """Split narration into spoken lines of roughly 10-24 words (one scene each)."""
+    import re
+    sents = [x.strip() for x in re.split(r"(?<=[.!?])\s+", text) if x.strip()]
+    pieces = []
+    for st in sents:   # break very long sentences at commas/semicolons
+        w = st.split()
+        while len(w) > hi:
+            cut = next((i + 1 for i in range(hi - 1, lo - 1, -1) if w[i].endswith((",", ";", ":"))), hi)
+            pieces.append(" ".join(w[:cut])); w = w[cut:]
+        if w:
+            pieces.append(" ".join(w))
+    lines, cur = [], []
+    for pc in pieces:  # merge very short sentences
+        cur += pc.split()
+        if len(cur) >= lo:
+            lines.append(" ".join(cur)); cur = []
+    if cur:
+        if lines and len(cur) < lo // 2:
+            lines[-1] += " " + " ".join(cur)
+        else:
+            lines.append(" ".join(cur))
+    return lines
+
+
+def _visuals(g, lines):
+    """Ask the LLM for clip searches + image prompts in batches; fill gaps with simple keywords."""
+    out = [None] * len(lines)
+    for b0 in range(0, len(lines), 10):
+        batch = lines[b0:b0 + 10]
+        try:
+            res = _ollama(VISUALS.format(genre=g["name"], visual_hint=g["visual_hint"], count=len(batch),
+                                         numbered="\n".join(f"{i + 1}. {t}" for i, t in enumerate(batch))), 1500)
+            for i, sc in enumerate([x for x in res.get("scenes", []) if isinstance(x, dict)][:len(batch)]):
+                out[b0 + i] = sc
+        except Exception as e:
+            print(f"  visuals batch {b0 // 10 + 1} fell back to keywords ({e})")
+    result = []
+    for t, sc in zip(lines, out):
+        sc = sc or {}
+        words = [w.strip(".,!?;:\"'").lower() for w in t.split()]
+        key = " ".join(sorted((w for w in words if len(w) > 4), key=len, reverse=True)[:2]) or g["visual_style"]
+        result.append({"say": t, "visual": sc.get("visual") or key, "image": sc.get("image") or t,
+                       "hl": sc.get("hl") or max(t.split(), key=len).strip(".,!?")})
+    return result
 
 
 def write_long(g, idea, inspo, minutes, use_llm=True):
-    chapters = max(3, min(16, round(minutes * 1.6)))
-    words_total = minutes * WPM; words = max(60, words_total // chapters); lines_per = max(4, round(words / 16))
-    if use_llm:
+    if not use_llm:
+        raise SystemExit("Long videos need the Ollama script writer (remove --no-llm).")
+    chapters = max(3, min(12, round(minutes * 1.4)))
+    words_total = int(minutes * WPM); target = max(60, words_total // chapters)
+    ins = ("Trending titles (tone only, do not copy):\n- " + "\n- ".join(inspo)) if inspo else ""
+    plan, chs = {}, []
+    for attempt in range(3):
         try:
-            ins = ("Trending titles (tone only, do not copy):\n- " + "\n- ".join(inspo)) if inspo else ""
             plan = _ollama(OUTLINE.format(minutes=minutes, genre=g["name"], niche=g["niche"], tone=g["tone"], idea=idea,
                                           inspo=ins, chapters=chapters), 1500)
             chs = [c for c in plan.get("chapters", []) if isinstance(c, dict) and c.get("heading")][:chapters]
-            if len(chs) < 2:
-                raise ValueError("outline too short")
-            print(f"  outline: {plan.get('title')!r}, {len(chs)} chapters")
-            plan_txt = " | ".join(f"{i + 1}. {c['heading']}: {c.get('summary', '')}" for i, c in enumerate(chs))
-            lines = []
-            for n, c in enumerate(chs, 1):
-                extra = ("Start with a gripping hook line." if n == 1 else "") + \
-                        (f' The final line must end with exactly: "{g["cta"]}"' if n == len(chs) else "")
-                prev = ("The previous chapter ended with: " + " ".join(l["say"] for l in lines[-3:])) if lines else ""
-                for attempt in range(2):
-                    try:
-                        part = _ollama(CHAPTER.format(minutes=minutes, genre=g["name"], title=plan.get("title", idea),
-                                                      tone=g["tone"], plan=plan_txt, n=n, total=len(chs), heading=c["heading"],
-                                                      summary=c.get("summary", ""), prev=prev, words=words, lines=lines_per,
-                                                      extra=extra, visual_hint=g["visual_hint"]))
-                        new = [l for l in part.get("lines", []) if isinstance(l, dict) and l.get("say")]
-                        if new:
-                            lines += new; break
-                    except Exception as e:
-                        print(f"  chapter {n} retry ({e})")
-                print(f"  chapter {n}/{len(chs)}: {c['heading']}  (total {sum(len(l['say'].split()) for l in lines)} words)")
-            if sum(len(l["say"].split()) for l in lines) < words_total * 0.4:
-                raise ValueError("script came out too short")
-            plan["lines"] = lines
-            return plan
+            if len(chs) >= 2:
+                break
         except Exception as e:
-            raise SystemExit(f"Long videos need the Ollama script writer, and it failed ({e}). "
-                             "Nothing was uploaded. Please run the workflow again.")
-    raise SystemExit("Long videos need the Ollama script writer (remove --no-llm).")
+            print(f"  outline retry ({e})")
+    if len(chs) < 2:   # still make the video: simple chapter plan from the idea
+        plan = {"title": idea[:70], "description": idea, "tags": [], "thumb_text": " ".join(idea.split()[:3]).upper()}
+        chs = [{"heading": h, "summary": idea} for h in ("The beginning", "It gets worse", "The truth", "The ending")]
+    print(f"  outline: {plan.get('title')!r}, {len(chs)} chapters, aiming for ~{words_total} words")
+    plan_txt = " | ".join(f"{i + 1}. {c['heading']}: {c.get('summary', '')}" for i, c in enumerate(chs))
+    story = []
+    for n, c in enumerate(chs, 1):
+        extra = ("Open with a gripping hook sentence. " if n == 1 else "") + \
+                (f'End the chapter with this exact sentence: "{g["cta"]}"' if n == len(chs) else "")
+        prev = ("The story so far ends with: " + " ".join(story[-1].split()[-60:])) if story else ""
+        text = ""
+        for attempt in range(4):   # write, then keep extending until the chapter reaches its word target
+            try:
+                if not text:
+                    text = _clean(_ollama(CHAPTER.format(minutes=minutes, genre=g["name"], title=plan.get("title", idea),
+                                                         tone=g["tone"], plan=plan_txt, n=n, total=len(chs), heading=c["heading"],
+                                                         summary=c.get("summary", ""), prev=prev, words=target, extra=extra),
+                                          int(target * 2.2) + 200, as_json=False))
+                else:
+                    more = _clean(_ollama(MORE.format(n=n, heading=c["heading"], words=target - len(text.split()), text=text),
+                                          int(target * 2) + 200, as_json=False))
+                    text = (text + " " + more).strip()
+            except Exception as e:
+                print(f"  chapter {n} retry ({e})")
+            if len(text.split()) >= target * 0.85:
+                break
+        if n == len(chs) and g["cta"].lower().rstrip(".") not in text.lower():
+            text = (text + " " + g["cta"]).strip()
+        story.append(text)
+        print(f"  chapter {n}/{len(chs)}: {c['heading']}  ({len(text.split())} words, total {sum(len(t.split()) for t in story)})")
+    lines = _to_lines(" ".join(story))
+    got = sum(len(l.split()) for l in lines)
+    if got < words_total * 0.6:
+        print(f"  note: script is {got} words (~{got / WPM:.1f} min), shorter than the {minutes:g} min asked; making it anyway")
+    if not lines:
+        raise SystemExit("The script writer returned nothing (is Ollama running?). Nothing was uploaded. Please run again.")
+    print(f"  {len(lines)} scenes; adding clip searches and image prompts")
+    plan["lines"] = _visuals(g, lines)
+    return plan
 
 
 def write_script(g, idea, inspo, use_llm=True):

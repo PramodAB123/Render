@@ -1,4 +1,4 @@
-"""Step 1: find ideas with the free YouTube Data API (search + stats). Falls back to the genre's seed ideas."""
+﻿"""Step 1: find ideas with the free YouTube Data API (search + stats). Falls back to the genre's seed ideas."""
 import datetime as dt, json, os, random, sys
 import requests
 from common import WORK, genre_cfg
@@ -10,7 +10,7 @@ def trending(query, key, days=30, n=15):
     after = (dt.datetime.utcnow() - dt.timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
     r = requests.get(f"{API}/search", params={
         "key": key, "q": query, "part": "snippet", "type": "video", "order": "viewCount",
-        "videoDuration": "short", "publishedAfter": after, "maxResults": n}, timeout=30)
+        "videoDuration": "short", "publishedAfter": after, "relevanceLanguage": "en", "maxResults": n}, timeout=30)
     r.raise_for_status()
     ids = [it["id"]["videoId"] for it in r.json().get("items", [])]
     if not ids:
