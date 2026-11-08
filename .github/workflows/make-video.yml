@@ -48,13 +48,13 @@ jobs:
       YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
       YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with: { python-version: "3.12", cache: pip }
 
-      - uses: actions/setup-node@v4
-        with: { node-version: "20" }
+      - uses: actions/setup-node@v7
+        with: { node-version: "24" }
 
       - name: System packages (FFmpeg, fonts)
         run: |
@@ -77,12 +77,12 @@ jobs:
       - name: Restore the AI image model from cache
         id: hfcache
         if: ${{ inputs.mode == 'ai' || inputs.mode == 'mix' }}
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with: { path: /home/runner/.cache/huggingface, key: "hf-dreamshaper-8-lcm" }
 
       - name: Restore Ollama (program + model) from cache
         id: ollamacache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: |
             /home/runner/.ollama/models
@@ -133,15 +133,24 @@ jobs:
           fi
           python run.py "${ARGS[@]}"
 
-      # Saved even if the run fails or is cancelled, so the big downloads happen only once
+      # Saved even if the run fails or is cancelled, so the big downloads happen only once.
+      # A cache problem never fails the run (it only means the next run downloads again).
+      - name: Prepare cache folders
+        if: always()
+        run: |
+          mkdir -p /home/runner/.ollama/models /home/runner/ollama-bin /home/runner/.cache/huggingface
+          rm -rf /home/runner/.cache/huggingface/hub/.locks /home/runner/.cache/huggingface/xet 2>/dev/null || true
+
       - name: Save the AI image model to cache
+        continue-on-error: true
         if: ${{ always() && (inputs.mode == 'ai' || inputs.mode == 'mix') && steps.hfcache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with: { path: /home/runner/.cache/huggingface, key: "hf-dreamshaper-8-lcm" }
 
       - name: Save Ollama to cache
+        continue-on-error: true
         if: ${{ always() && steps.ollamacache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: |
             /home/runner/.ollama/models
@@ -150,7 +159,7 @@ jobs:
 
       - name: Keep the video (download from the run page for 14 days)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: video
           path: output/
