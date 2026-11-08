@@ -24,7 +24,8 @@ a 3D cinema video about 20-30. A public repo has unlimited minutes (your keys st
    2. Credentials > Create credentials > **API key** (for trending ideas).
    3. OAuth consent screen: External, your app name + email, add yourself as a test user, then **Publish app**.
    4. Get the upload refresh token in your browser: follow `YOUTUBE_TOKEN.md` (uses Google's OAuth Playground, about 5 minutes).
-3. **Pexels key:** https://www.pexels.com/api/   **Pixabay key:** https://pixabay.com/api/docs/  (both free)
+3. **Pixabay key:** https://pixabay.com/api/docs/ (free). **Pexels key** is optional: Pexels paused new API keys
+   (Nov 2026). Leave `PEXELS_API_KEY` unset and the pipeline uses Pixabay only; add it later if Pexels reopens.
 4. **Add GitHub Secrets:** repo > Settings > Secrets and variables > Actions > New repository secret:
 
    | Secret | Value |
