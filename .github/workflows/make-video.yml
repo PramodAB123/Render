@@ -44,7 +44,9 @@ jobs:
         with: { node-version: "20" }
 
       - name: System packages (FFmpeg, fonts)
-        run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg fonts-dejavu-core fonts-inter
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q ffmpeg fonts-dejavu-core
+          sudo apt-get install -y -q fonts-inter || true
 
       - name: Python + Node packages
         run: |
