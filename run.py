@@ -36,7 +36,7 @@ def main():
     meta = {k: sc.get(k) for k in ("title", "description", "tags")}
     if stock.USED_CREDITS:  # Pexels/Pixabay ask creators to be credited
         meta["description"] = (meta.get("description") or "") + "\n\nFootage: " + "; ".join(stock.USED_CREDITS)
- meta["script"] = [l["say"] for l in sc["lines"]]
+    meta["script"] = [l["say"] for l in sc["lines"]]
     json.dump(meta, open(out / "meta.json", "w", encoding="utf-8"), indent=1, ensure_ascii=False)
     if a.upload:
         print("7/7 upload"); import upload; meta["youtube_id"] = upload.upload(final, meta, thumb)
