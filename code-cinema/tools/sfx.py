@@ -8,11 +8,17 @@ def add(buf, sig, t, g=1.0):
     if i >= len(buf) or i + len(sig) <= 0: return
     if i < 0: sig = sig[-i:]; i = 0
     n = min(len(sig), len(buf) - i); buf[i:i + n] += sig[:n] * g
-def lp(x, a):  # one-pole lowpass, a in (0,1): smaller = darker
-    y = np.empty_like(x); s = 0.0
-    for i in range(len(x)): s += a * (x[i] - s); y[i] = s
-    return y
-def lpf(x, k): return np.convolve(x, np.ones(k) / k, 'same')
+def lp(x, a):  # one-pole lowpass, a in (0,1): smaller = darker (vectorised: fast for long videos)
+    try:
+        from scipy.signal import lfilter
+        return lfilter([a], [1, a - 1], x)
+    except ImportError:
+        y = np.empty_like(x); s = 0.0
+        for i in range(len(x)): s += a * (x[i] - s); y[i] = s
+        return y
+def lpf(x, k):  # moving average, same length (cumulative sum: fast even for k=2000 on 10-minute audio)
+    c = np.cumsum(np.concatenate([np.zeros(k // 2 + 1), x, np.zeros(k)]))
+    return ((c[k:] - c[:-k]) / k)[:len(x)]
 # ---------------- music: lofi chords (Rhodes-ish), bass, soft drums, vinyl crackle
 bpm = MU.get('bpm', 84); beat = 60 / bpm; bar = beat * 4
 prog = MU.get('chords', [[53, 57, 60, 64], [52, 55, 59, 62], [50, 53, 57, 60], [48, 52, 55, 59]])  # Fmaj7 Em7 Dm7 Cmaj7

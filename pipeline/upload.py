@@ -33,8 +33,12 @@ def upload(video, meta, thumb=None, g=None):
     y = load_config()["youtube"]; yt = service()
     g = g or {}
     tags = list(dict.fromkeys((meta.get("tags") or []) + g.get("tags", []) + ["shorts"]))[:15]
-    body = {"snippet": {"title": meta["title"][:95] + " #shorts" if "#shorts" not in meta["title"] else meta["title"][:100],
-                        "description": meta.get("description", "") + "\n\n#shorts", "tags": tags, "categoryId": g.get("category_id", "24")},
+    short = meta.get("format", "short") == "short"
+    if not short:
+        tags = [t for t in tags if t != "shorts"]
+    title = (meta["title"][:91] + " #shorts") if short and "#shorts" not in meta["title"] else meta["title"][:100]
+    body = {"snippet": {"title": title, "description": meta.get("description", "") + ("\n\n#shorts" if short else ""),
+                        "tags": tags, "categoryId": g.get("category_id", "24")},
             "status": {"privacyStatus": y["privacy"], "selfDeclaredMadeForKids": y["made_for_kids"],
                        "containsSyntheticMedia": y.get("synthetic_media", True)}}
     req = yt.videos().insert(part="snippet,status", body=body, media_body=MediaFileUpload(video, chunksize=-1, resumable=True))

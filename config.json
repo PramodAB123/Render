@@ -2,96 +2,381 @@
   "default_genre": "horror",
   "daily_genre": "rotate",
   "mode": "stock",
-  "llm": {"model": "llama3.2:3b", "host": "http://localhost:11434"},
-  "voice": {"engine": "edge", "kokoro_voice": "am_michael", "speed": 1.0},
-  "video": {"size": [1080, 1920], "fps": 30, "caption_font": "Arial Black", "caption_size": 92, "music_gain": 0.9},
-  "youtube": {"privacy": "private", "made_for_kids": false, "synthetic_media": true},
-
+  "llm": {
+    "model": "llama3.2:3b",
+    "host": "http://localhost:11434"
+  },
+  "voice": {
+    "engine": "edge",
+    "kokoro_voice": "am_michael",
+    "speed": 1.0
+  },
+  "video": {
+    "size": [
+      1080,
+      1920
+    ],
+    "fps": 30,
+    "caption_font": "Arial Black",
+    "caption_size": 92,
+    "music_gain": 0.9,
+    "long_size": [
+      1920,
+      1080
+    ],
+    "long_caption_size": 60
+  },
+  "youtube": {
+    "privacy": "private",
+    "made_for_kids": false,
+    "synthetic_media": true
+  },
   "genres": {
     "horror": {
       "niche": "scary survival horror story shorts",
-      "idea_queries": ["scary story shorts", "creepy what would you do short", "night shift horror story"],
+      "idea_queries": [
+        "scary story shorts",
+        "creepy what would you do short",
+        "night shift horror story"
+      ],
       "seed_ideas": [
         "The babysitter hears footsteps upstairs but the kids are asleep downstairs",
         "Your car breaks down on an empty road and someone knocks on the window",
-        "The night guard notices one camera shows a room that does not exist"],
+        "The night guard notices one camera shows a room that does not exist"
+      ],
       "tone": "slow-burn creepy horror. Short, tense sentences. Second person (\"you\"). Build dread line by line, one unsettling detail at a time. End on a chilling cliffhanger.",
       "cta": "Follow for part two.",
       "visual_style": "dark night creepy",
       "visual_hint": "dark, shadowy, empty, abandoned places at night (e.g. \"dark hallway\", \"foggy forest night\", \"flickering light\")",
       "grade": "eq=brightness=-0.07:contrast=1.12:saturation=0.55,colorbalance=bs=0.08:bm=0.04,vignette=PI/4,noise=alls=10:allf=t",
-      "voice": {"edge_voice": "en-US-ChristopherNeural", "rate": "-8%", "pitch": "-6Hz", "fx": "aecho=0.8:0.6:60:0.22"},
-      "music": {"bpm": 60, "gain": 0.8, "chords": [[45, 48, 51, 54], [44, 47, 50, 53], [46, 49, 52, 55], [43, 46, 49, 52]]},
-      "gap": 0.28, "highlight": "&H003A3AFF", "caption_size": 88,
-      "thumb_color": "#ff3b3b", "tags": ["horror", "scary", "creepy", "survival", "scarystory"], "category_id": "24"
+      "voice": {
+        "edge_voice": "en-US-ChristopherNeural",
+        "rate": "-8%",
+        "pitch": "-6Hz",
+        "fx": "aecho=0.8:0.6:60:0.22"
+      },
+      "music": {
+        "bpm": 60,
+        "gain": 0.8,
+        "chords": [
+          [
+            45,
+            48,
+            51,
+            54
+          ],
+          [
+            44,
+            47,
+            50,
+            53
+          ],
+          [
+            46,
+            49,
+            52,
+            55
+          ],
+          [
+            43,
+            46,
+            49,
+            52
+          ]
+        ]
+      },
+      "gap": 0.28,
+      "highlight": "&H003A3AFF",
+      "caption_size": 88,
+      "thumb_color": "#ff3b3b",
+      "tags": [
+        "horror",
+        "scary",
+        "creepy",
+        "survival",
+        "scarystory"
+      ],
+      "category_id": "24",
+      "image_style": "dark horror film still, eerie, moody low-key lighting, fog, desaturated, 35mm film grain, photorealistic"
     },
     "comedy": {
       "niche": "funny relatable comedy shorts",
-      "idea_queries": ["funny relatable shorts", "comedy skit shorts", "when you try to adult shorts"],
+      "idea_queries": [
+        "funny relatable shorts",
+        "comedy skit shorts",
+        "when you try to adult shorts"
+      ],
       "seed_ideas": [
         "Trying to look busy when the boss walks past",
         "Your mom asks you to find something she hid in the house",
-        "Your dog judging every life choice you make"],
+        "Your dog judging every life choice you make"
+      ],
       "tone": "upbeat, playful comedy. Relatable everyday situations, quick punchlines, exaggeration, a twist on the last line. Clean humor, no insults.",
       "cta": "Tag a friend who does this.",
       "visual_style": "funny",
       "visual_hint": "bright, funny, expressive everyday moments (e.g. \"funny dog\", \"surprised face\", \"office fail\", \"cat jumping\")",
       "grade": "eq=brightness=0.03:contrast=1.06:saturation=1.3",
-      "voice": {"edge_voice": "en-US-AriaNeural", "rate": "+12%", "pitch": "+3Hz", "fx": ""},
-      "music": {"bpm": 116, "gain": 1.0, "chords": [[60, 64, 67, 72], [65, 69, 72, 77], [67, 71, 74, 79], [60, 64, 67, 72]]},
-      "gap": 0.06, "highlight": "&H0000E5FF", "caption_size": 96,
-      "thumb_color": "#ffe500", "tags": ["comedy", "funny", "relatable", "memes", "lol"], "category_id": "23"
+      "voice": {
+        "edge_voice": "en-US-AriaNeural",
+        "rate": "+12%",
+        "pitch": "+3Hz",
+        "fx": ""
+      },
+      "music": {
+        "bpm": 116,
+        "gain": 1.0,
+        "chords": [
+          [
+            60,
+            64,
+            67,
+            72
+          ],
+          [
+            65,
+            69,
+            72,
+            77
+          ],
+          [
+            67,
+            71,
+            74,
+            79
+          ],
+          [
+            60,
+            64,
+            67,
+            72
+          ]
+        ]
+      },
+      "gap": 0.06,
+      "highlight": "&H0000E5FF",
+      "caption_size": 96,
+      "thumb_color": "#ffe500",
+      "tags": [
+        "comedy",
+        "funny",
+        "relatable",
+        "memes",
+        "lol"
+      ],
+      "category_id": "23",
+      "image_style": "bright funny photo, vivid colours, expressive, sunny, sharp focus, photorealistic"
     },
     "science": {
       "niche": "mind blowing science facts shorts",
-      "idea_queries": ["science facts shorts", "space facts shorts", "how does it work shorts"],
+      "idea_queries": [
+        "science facts shorts",
+        "space facts shorts",
+        "how does it work shorts"
+      ],
       "seed_ideas": [
         "What would happen if the Moon disappeared tonight",
         "Why you can never see your own blind spot",
-        "How a teaspoon of a neutron star would weigh billions of tons"],
+        "How a teaspoon of a neutron star would weigh billions of tons"
+      ],
       "tone": "curious, clear, mind-blowing science explainer. Every line one true, simple fact, building to a surprising final fact. No made-up facts; if unsure keep it general.",
       "cta": "Follow for one fact a day.",
       "visual_style": "science",
       "visual_hint": "space, laboratory, nature, microscope, technology footage (e.g. \"galaxy\", \"lab experiment\", \"earth from space\")",
       "grade": "eq=contrast=1.08:saturation=1.12,colorbalance=bs=0.05:bh=0.05",
-      "voice": {"edge_voice": "en-GB-RyanNeural", "rate": "+2%", "pitch": "+0Hz", "fx": ""},
-      "music": {"bpm": 92, "gain": 0.9, "chords": [[57, 60, 64, 67], [53, 57, 60, 64], [48, 52, 55, 60], [55, 59, 62, 67]]},
-      "gap": 0.12, "highlight": "&H00FFE14A", "caption_size": 90,
-      "thumb_color": "#4ae1ff", "tags": ["science", "facts", "space", "didyouknow", "education"], "category_id": "28"
+      "voice": {
+        "edge_voice": "en-GB-RyanNeural",
+        "rate": "+2%",
+        "pitch": "+0Hz",
+        "fx": ""
+      },
+      "music": {
+        "bpm": 92,
+        "gain": 0.9,
+        "chords": [
+          [
+            57,
+            60,
+            64,
+            67
+          ],
+          [
+            53,
+            57,
+            60,
+            64
+          ],
+          [
+            48,
+            52,
+            55,
+            60
+          ],
+          [
+            55,
+            59,
+            62,
+            67
+          ]
+        ]
+      },
+      "gap": 0.12,
+      "highlight": "&H00FFE14A",
+      "caption_size": 90,
+      "thumb_color": "#4ae1ff",
+      "tags": [
+        "science",
+        "facts",
+        "space",
+        "didyouknow",
+        "education"
+      ],
+      "category_id": "28",
+      "image_style": "scientific documentary still, crisp, clean lighting, awe-inspiring, National Geographic style, photorealistic"
     },
     "motivation": {
       "niche": "motivational discipline shorts",
-      "idea_queries": ["motivation shorts", "discipline motivation speech shorts", "self improvement shorts"],
+      "idea_queries": [
+        "motivation shorts",
+        "discipline motivation speech shorts",
+        "self improvement shorts"
+      ],
       "seed_ideas": [
         "Nobody is coming to save you, and that is good news",
         "The version of you in five years is watching right now",
-        "Discipline is choosing what you want most over what you want now"],
+        "Discipline is choosing what you want most over what you want now"
+      ],
       "tone": "powerful, intense motivational speech. Short punchy lines, direct \"you\", rising energy, one memorable final line.",
       "cta": "Follow if you are not giving up.",
       "visual_style": "cinematic",
       "visual_hint": "cinematic training, running, mountains, sunrise, city at dawn (e.g. \"man running sunrise\", \"boxing training\", \"mountain summit\")",
       "grade": "eq=contrast=1.15:saturation=0.9,colorbalance=rs=0.06:rh=0.05:bh=-0.04,vignette=PI/5",
-      "voice": {"edge_voice": "en-US-GuyNeural", "rate": "-3%", "pitch": "-3Hz", "fx": ""},
-      "music": {"bpm": 96, "gain": 1.0, "chords": [[50, 57, 62, 65], [46, 53, 58, 62], [48, 55, 60, 64], [45, 52, 57, 61]]},
-      "gap": 0.18, "highlight": "&H0030A0FF", "caption_size": 94,
-      "thumb_color": "#ffa030", "tags": ["motivation", "discipline", "selfimprovement", "mindset", "success"], "category_id": "22"
+      "voice": {
+        "edge_voice": "en-US-GuyNeural",
+        "rate": "-3%",
+        "pitch": "-3Hz",
+        "fx": ""
+      },
+      "music": {
+        "bpm": 96,
+        "gain": 1.0,
+        "chords": [
+          [
+            50,
+            57,
+            62,
+            65
+          ],
+          [
+            46,
+            53,
+            58,
+            62
+          ],
+          [
+            48,
+            55,
+            60,
+            64
+          ],
+          [
+            45,
+            52,
+            57,
+            61
+          ]
+        ]
+      },
+      "gap": 0.18,
+      "highlight": "&H0030A0FF",
+      "caption_size": 94,
+      "thumb_color": "#ffa030",
+      "tags": [
+        "motivation",
+        "discipline",
+        "selfimprovement",
+        "mindset",
+        "success"
+      ],
+      "category_id": "22",
+      "image_style": "epic cinematic photo, golden hour, dramatic light, high contrast, heroic, photorealistic"
     },
     "mystery": {
       "niche": "unsolved mysteries and strange true stories shorts",
-      "idea_queries": ["unsolved mystery shorts", "strange true story shorts", "unexplained mysteries shorts"],
+      "idea_queries": [
+        "unsolved mystery shorts",
+        "strange true story shorts",
+        "unexplained mysteries shorts"
+      ],
       "seed_ideas": [
         "A ship found sailing perfectly with no one on board",
         "A town where every clock stopped at the same minute",
-        "A radio signal from space that was never heard again"],
+        "A radio signal from space that was never heard again"
+      ],
       "tone": "intriguing documentary-style mystery. Calm, curious narrator, clues revealed one by one, ending with an open question for the viewer. Say \"reportedly\" for anything not proven.",
       "cta": "Comment your theory below.",
       "visual_style": "mysterious",
       "visual_hint": "fog, old documents, abandoned places, ocean, night sky, old photographs (e.g. \"foggy ocean ship\", \"old map\", \"abandoned town\")",
       "grade": "eq=contrast=1.1:saturation=0.7,colorbalance=bs=0.1:bm=0.06:rs=-0.03,vignette=PI/4",
-      "voice": {"edge_voice": "en-US-EricNeural", "rate": "-5%", "pitch": "-2Hz", "fx": ""},
-      "music": {"bpm": 70, "gain": 0.85, "chords": [[50, 53, 57, 60], [49, 53, 56, 60], [46, 50, 53, 57], [45, 49, 52, 56]]},
-      "gap": 0.2, "highlight": "&H00FF70C8", "caption_size": 88,
-      "thumb_color": "#c870ff", "tags": ["mystery", "unsolved", "unexplained", "truestory", "strange"], "category_id": "24"
+      "voice": {
+        "edge_voice": "en-US-EricNeural",
+        "rate": "-5%",
+        "pitch": "-2Hz",
+        "fx": ""
+      },
+      "music": {
+        "bpm": 70,
+        "gain": 0.85,
+        "chords": [
+          [
+            50,
+            53,
+            57,
+            60
+          ],
+          [
+            49,
+            53,
+            56,
+            60
+          ],
+          [
+            46,
+            50,
+            53,
+            57
+          ],
+          [
+            45,
+            49,
+            52,
+            56
+          ]
+        ]
+      },
+      "gap": 0.2,
+      "highlight": "&H00FF70C8",
+      "caption_size": 88,
+      "thumb_color": "#c870ff",
+      "tags": [
+        "mystery",
+        "unsolved",
+        "unexplained",
+        "truestory",
+        "strange"
+      ],
+      "category_id": "24",
+      "image_style": "mysterious documentary still, fog, muted colours, dim light, film grain, photorealistic"
     }
+  },
+  "image": {
+    "model": "Lykon/dreamshaper-8-lcm",
+    "steps": 6,
+    "guidance": 1.5,
+    "size": [
+      768,
+      432
+    ],
+    "max_images": 80,
+    "negative": "text, watermark, logo, cartoon, anime, 3d render, deformed, disfigured, extra limbs, blurry, lowres, nsfw, gore"
   }
 }

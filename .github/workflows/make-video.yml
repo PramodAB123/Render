@@ -12,11 +12,16 @@ on:
         default: "horror"
         type: choice
         options: [horror, comedy, science, motivation, mystery]
+      length:
+        description: "Short = vertical YouTube Short (~30 s). Minutes = 16:9 narrated video"
+        default: "short"
+        type: choice
+        options: [short, 1 min, 3 min, 5 min, 10 min]
       mode:
-        description: "stock (Pexels/Pixabay clips) or cinema (3D code-rendered room)"
+        description: "Visuals: stock clips, AI images (free, made on the runner), mix of both, or cinema (3D room, Shorts only)"
         default: "stock"
         type: choice
-        options: [stock, cinema]
+        options: [stock, ai, mix, cinema]
       idea:
         description: "Optional idea (leave empty to use trending YouTube ideas)"
         required: false
@@ -28,7 +33,7 @@ on:
 jobs:
   make:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 240
     env:
       LLM_MODEL: llama3.2:3b
       OLLAMA_MODELS: /home/runner/.ollama/models
@@ -61,6 +66,15 @@ jobs:
       - name: Chromium for the 3D cinema mode
         if: ${{ inputs.mode == 'cinema' }}
         run: npx playwright install --with-deps chromium
+
+      - name: Free AI image model (CPU) for ai / mix visuals
+        if: ${{ inputs.mode == 'ai' || inputs.mode == 'mix' }}
+        run: pip install -q torch --index-url https://download.pytorch.org/whl/cpu && pip install -q diffusers transformers accelerate safetensors
+
+      - name: Cache the AI image model
+        if: ${{ inputs.mode == 'ai' || inputs.mode == 'mix' }}
+        uses: actions/cache@v4
+        with: { path: /home/runner/.cache/huggingface, key: "hf-dreamshaper-8-lcm" }
 
       - name: Cache Ollama (program + model)
         uses: actions/cache@v4
@@ -102,11 +116,12 @@ jobs:
       - name: Make the video
         env:
           MODE: ${{ inputs.mode || 'stock' }}
+          LENGTH: ${{ inputs.length || 'short' }}
           GENRE: ${{ inputs.genre || 'rotate' }}   # daily runs rotate through all genres
           IDEA: ${{ inputs.idea }}
           WANT_UPLOAD: ${{ github.event_name == 'schedule' || inputs.upload }}
         run: |
-          ARGS=(--genre "$GENRE" --mode "$MODE")
+          ARGS=(--genre "$GENRE" --mode "$MODE" --length "$LENGTH")
           if [ -n "$IDEA" ]; then ARGS+=(--idea "$IDEA"); fi
           if [ "$WANT_UPLOAD" = "true" ]; then
             if [ -n "$YT_REFRESH_TOKEN" ]; then ARGS+=(--upload); else echo "No YT_REFRESH_TOKEN secret yet - skipping upload"; fi

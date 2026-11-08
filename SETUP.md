@@ -46,6 +46,24 @@ a 3D cinema video about 20-30. A public repo has unlimited minutes (your keys st
 - Uploads go out as `private` by default (`config.json` > `youtube.privacy`) so you can check them first; set it to `public` when you trust it.
 - Pexels and Pixabay ask you to credit the creators: the pipeline adds a "Footage:" credits line to each description automatically.
 
+## Length and visuals
+
+**Length** (Run workflow form): `short` = vertical Short (~30 s). `1 / 3 / 5 / 10 min` = 16:9 narrated video with chapters,
+written by Ollama in parts (outline first, then each chapter), subtitles at the bottom, no #shorts tag.
+
+**Visuals:**
+- `stock`: Pixabay (and Pexels if you have a key) clips.
+- `ai`: every scene is an AI image, generated free on the runner's CPU, with slow zoom/pan (Ken Burns) motion.
+- `mix`: AI image and stock clip alternate (best balance of realism and speed).
+- `cinema`: the 3D code-rendered room (Shorts only).
+
+**AI images**: model `Lykon/dreamshaper-8-lcm` (Stable Diffusion 1.5 fine-tune), license CreativeML OpenRAIL-M, which
+allows commercial use of the images but forbids harmful/illegal uses. No API, no key, no account; it runs on GitHub's runner.
+About 10-25 s per image. If an image fails, that scene falls back to a stock clip. Change `image` in `config.json` to tune steps/size.
+
+**Rough run times** (GitHub free runner): Short ~8-10 min; 5-min `mix` ~25-35 min; 5-min `ai` ~35-45 min; 10-min `ai` ~60-80 min.
+Private repo: 2,000 free minutes/month, then runs are blocked (never billed without a card). Public repo: unlimited.
+
 ## Genres
 
 Pick one in the **Genre** dropdown when you press Run workflow. Daily automatic runs rotate through all five.
