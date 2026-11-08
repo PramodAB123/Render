@@ -59,6 +59,13 @@ written by Ollama in parts (outline first, then each chapter), subtitles at the 
   Pixabay clips (slowed slightly); crossfades between scenes, fade-through-black + "CHAPTER N" title cards, cinematic
   black bars, narrator tone, and sound design (whoosh on cuts, low boom on chapters, quiet drone). Best with `history`,
   `mystery` or `horror` and 3-10 min. At most 12 AI images per video.
+- `2d`: animated cartoon story, always vertical (Short = ~55 s; 1/3 min also vertical). Original flat-vector characters
+  (with optional pet) that blink, talk and react (scared/happy/angry/sad), parallax backgrounds (road, forest, mountains,
+  snow, city, cabin, house, vehicle, sea, desert, cave, space, school), weather (snow, blizzard, rain, storm, fog),
+  a HUD bar with clock/day/temperature/location, PART tag, route maps, checklists, radio messages, fact chips, big
+  stats, pop-in captions with red keywords, and a two-button "vote in the comments" end card. Narrator uses the genre
+  voice; every character gets its own free Edge voice, and each line's emotion changes speed and pitch. All drawn in
+  code by `toon/toon.html` (about 3 minutes of rendering per minute of video), no AI images needed.
 - `cinema`: the 3D code-rendered room (Shorts only).
 
 **AI images**: model `Lykon/dreamshaper-8-lcm` (Stable Diffusion 1.5 fine-tune), license CreativeML OpenRAIL-M, which

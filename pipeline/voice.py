@@ -51,7 +51,9 @@ def voice_lines(lines, d, g):
         elif eng == "piper":
             _piper(ln["say"], raw)
         else:
-            _edge(ln["say"], raw, gv.get("edge_voice", SAFE_VOICE), gv.get("rate", "+0%"), gv.get("pitch", "+0Hz"))
+            # a line can carry its own voice / rate / pitch (2D mode: each character speaks with its own voice)
+            _edge(ln["say"], raw, ln.get("voice") or gv.get("edge_voice", SAFE_VOICE), ln.get("rate") or gv.get("rate", "+0%"),
+                  ln.get("pitch") or gv.get("pitch", "+0Hz"))
         out = os.path.join(d, f"s{i}.wav")
         ff("-i", raw, "-af", fx, "-ac", 1, "-ar", 44100, out)
         durs.append(round(sf.info(out).duration, 3))
