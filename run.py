@@ -10,7 +10,7 @@
 import argparse, json, os, sys, time
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "pipeline"))
 from common import load_config, genre_cfg, slug, WORK, OUTPUT  # noqa: E402
-import ideas, scriptgen, voice, timeline, stock, cinema, thumbnail, toon  # noqa: E402
+import ideas, scriptgen, voice, timeline, stock, cinema, thumbnail, toon, stick, inserts  # noqa: E402
 
 
 def parse_length(s):
@@ -27,8 +27,8 @@ def main():
     cfg = load_config(); ap = argparse.ArgumentParser()
     ap.add_argument("--genre", default=cfg.get("default_genre", "horror"),
                     help="one of: " + ", ".join(cfg["genres"]) + ", rotate")
-    ap.add_argument("--mode", default=cfg.get("mode", "stock"), choices=["stock", "ai", "mix", "doc", "2d", "cinema"],
-                    help="stock clips, AI images, a mix, doc (documentary: AI stills + footage, crossfades, chapter cards), 2d (animated cartoon story, vertical), or cinema (3D room, Shorts)")
+    ap.add_argument("--mode", default=cfg.get("mode", "stock"), choices=["stock", "ai", "mix", "doc", "2d", "stick", "cinema"],
+                    help="stock clips, AI images, a mix, doc (documentary: AI stills + footage, crossfades, chapter cards), 2d (animated cartoon story), stick (stick-figure explainer), or cinema (3D room, Shorts)")
     ap.add_argument("--length", default="30 sec", help="30 sec, 1 min, 3 min, 5 min or 10 min")
     ap.add_argument("--orientation", default="portrait", choices=["portrait", "landscape"],
                     help="portrait 9:16 (Shorts / Reels) or landscape 16:9 (normal YouTube video)")
@@ -46,6 +46,8 @@ def main():
     step("2/7 script")
     if a.mode == "2d":
         sc = toon.write_story(g, idea, inspo, minutes)
+    elif a.mode == "stick":
+        sc = stick.write_story(g, idea, inspo, secs)
     else:
         sc = (scriptgen.write_long(g, idea, inspo, minutes, use_llm=not a.no_llm, doc=a.mode == "doc") if secs >= 60
               else scriptgen.write_script(g, idea, inspo, use_llm=not a.no_llm))
@@ -60,10 +62,14 @@ def main():
         cinema.render(sc, d, g, fast=not a.full_quality)
     elif a.mode == "2d":
         tl = timeline.build_timeline(sc["lines"], durs, d, g, gap=gap); toon.render(sc, tl, d, g, size)
+    elif a.mode == "stick":
+        tl = timeline.build_timeline(sc["lines"], durs, d, g, gap=gap); stick.render(sc, tl, d, g, size)
     else:
         tl = timeline.build_timeline(sc["lines"], durs, d, g, gap=gap)
         timeline.write_ass(tl, os.path.join(d, "captions.ass"), g, size); stock.render(tl, d, g, size, a.mode)
     tl = json.load(open(os.path.join(d, "timeline.json")))
+    if a.mode in ("2d", "stick"):
+        inserts.apply(tl, d, g, size)   # /breakdown 3D exploded-view cutaways
     out = OUTPUT / name; out.mkdir(parents=True, exist_ok=True); final = str(out / "final.mp4")
     step("5/7 music + mix"); timeline.music_and_mix(d, final, g, doc=a.mode == "doc")
     step("6/7 thumbnail"); thumb = thumbnail.make(final, sc.get("thumb_text") or sc["title"], str(out / "thumbnail.jpg"),

@@ -92,7 +92,8 @@ def fit_length(lines, durs, d, target, gap):
     """Bring the narration close to the length that was asked for.
     Too long: speed every line up together (max 1.25x, pitch kept). Too short: longer pauses (max +0.6 s per line).
     Returns (durs, gap)."""
-    total = sum(durs) + gap * len(durs) + 1.7
+    eff = lambda: sum(max(du, float(ln.get('minDur') or 0)) for du, ln in zip(durs, lines))   # cutaways keep their minimum length
+    total = eff() + gap * len(durs) + 1.7
     if target and total > target * 1.06:
         f = min(1.25, total / target)
         for i, ln in enumerate(lines):
@@ -104,6 +105,6 @@ def fit_length(lines, durs, d, target, gap):
     elif target and total < target * 0.94:
         extra = min(0.6, (target - total) / max(1, len(durs)))
         gap += extra; print(f"  length: {total:.0f}s narrated for a {target}s video -> pauses +{extra:.2f}s per line")
-    new = sum(durs) + gap * len(durs) + 1.7
+    new = eff() + gap * len(durs) + 1.7
     print(f"  length: final about {new:.0f}s (asked {target}s)")
     return durs, gap

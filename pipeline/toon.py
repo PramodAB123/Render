@@ -5,7 +5,7 @@ import json, os, random, re, subprocess
 import requests
 from common import load_config, ROOT
 
-SHOTS = ["char", "map", "checklist", "chips", "message", "stat", "graph", "black"]
+SHOTS = ["char", "map", "checklist", "chips", "message", "stat", "graph", "breakdown", "black"]
 PLACES = ["mountains", "forest", "snow", "road", "city", "house", "room", "office", "cabin", "vehicle", "desert", "sea", "cave", "space", "school"]
 WEATHER = ["clear", "snow", "blizzard", "rain", "storm", "fog"]
 EMO = ["calm", "scared", "happy", "angry", "sad"]
@@ -19,7 +19,8 @@ Every line picks a visual "shot":
  char (a character on screen), map (route on a map; data: from, to), checklist (data: title, items list of 3 short words),
  chips (data: items list of 2-3 short facts like "400 CANS OF SOUP"), message (radio/phone; data: from, text),
  stat (big number; data: value, label), graph (a line that rises or falls; data: label, values list of 4-8 numbers, suffix),
- black (dark pause). Change the shot or place every 1-2 lines so the video never sits still; start the first line in action.
+ breakdown (3D exploded view of a PHONE with 6 labelled layers; only when a phone matters to the story;
+ data: title, subtitle, labels = 6 [name, short note] pairs, top layer first), black (dark pause). Change the shot or place every 1-2 lines so the video never sits still; start the first line in action.
 "place" is one of: {places}. "weather" is one of: {weather}. "emotion" is one of: {emo}.
 "time" is a clock like "11:40 PM" that moves forward through the story. "temp" like "4°F".
 End with a two-option question for viewers.
@@ -99,6 +100,11 @@ def _clean_line(l, prev):
         out["data"] = {"from": str(d.get("from") or "TOWN")[:14], "to": str(d.get("to") or "DESTINATION")[:16]}
     elif out["shot"] == "message":
         out["data"] = {"from": str(d.get("from") or "RADIO")[:18], "text": str(d.get("text") or say)[:90], "channel": str(d.get("channel") or "19")[:3]}
+    elif out["shot"] == "breakdown":
+        out["minDur"] = 4.0
+        labs = [x for x in (d.get("labels") or []) if isinstance(x, (list, tuple)) and x][:6]
+        out["data"] = {"title": str(d.get("title") or "Phone")[:18], "subtitle": str(d.get("subtitle") or "Exploded view")[:22],
+                       "labels": [[str(x[0])[:16], str(x[1] if len(x) > 1 else "")[:22]] for x in labs]}
     elif out["shot"] == "graph":
         vals = []
         for x in (d.get("values") or []):

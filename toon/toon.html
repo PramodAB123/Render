@@ -250,7 +250,7 @@ function drawShot(t, g) { const s = g.s, a = A[g.seg], cast = TL.cast || [], st 
   const whipX = a.tr == 'whip' ? a.wipe * W * 0.55 : 0, hx = Math.sin(t * 0.9) * 6 + Math.sin(t * 2.3) * 3, hy = Math.cos(t * 1.1) * 5;   // handheld drift
   X.save(); X.translate(W / 2 + a.camX + whipX + hx + Math.sin(t * 60) * sh, H / 2 + hy + Math.cos(t * 53) * sh); X.rotate(a.rot); X.scale(z, z); X.translate(-W / 2, -H / 2);
   if (s.shot == 'map') mapShot(t, a, s.data || {});
-  else if (s.shot == 'black') { X.fillStyle = '#040407'; X.fillRect(0, 0, W, H); }
+  else if (s.shot == 'black' || s.shot == 'breakdown') { X.fillStyle = '#040407'; X.fillRect(0, 0, W, H); }   // breakdown: 3D clip is overlaid later
   else { place(t, st); weather(t, st);
     const showChar = ['char', 'chips', 'checklist', 'choice', 'stat', 'graph'].includes(s.shot) || !s.shot;
     if (showChar && cast.length) { const who = cast.find(c => c.name == s.speaker) || cast[0], other = cast.find(c => c !== who);
