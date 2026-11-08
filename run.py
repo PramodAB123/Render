@@ -17,8 +17,8 @@ def main():
     cfg = load_config(); ap = argparse.ArgumentParser()
     ap.add_argument("--genre", default=cfg.get("default_genre", "horror"),
                     help="one of: " + ", ".join(cfg["genres"]) + ", rotate")
-    ap.add_argument("--mode", default=cfg.get("mode", "stock"), choices=["stock", "ai", "mix", "cinema"],
-                    help="stock clips, AI images, a mix of both, or the 3D cinema room (Shorts only)")
+    ap.add_argument("--mode", default=cfg.get("mode", "stock"), choices=["stock", "ai", "mix", "doc", "cinema"],
+                    help="stock clips, AI images, a mix, doc (documentary: AI stills + footage, crossfades, chapter cards), or cinema (3D room, Shorts)")
     ap.add_argument("--length", default="short", help="short (vertical Short) or minutes for a 16:9 video: 1, 3, 5, 10")
     ap.add_argument("--idea"); ap.add_argument("--upload", action="store_true"); ap.add_argument("--no-llm", action="store_true")
     ap.add_argument("--full-quality", action="store_true", help="cinema mode: render 3D at full resolution (slower)")
@@ -32,7 +32,7 @@ def main():
     step = lambda s: print(f"{s}   [{(time.time() - t0) / 60:.1f} min]", flush=True)
     step("1/7 idea");     idea, inspo = (a.idea, []) if a.idea else ideas.pick_idea(g)
     step("2/7 script")
-    sc = (scriptgen.write_long(g, idea, inspo, minutes, use_llm=not a.no_llm) if minutes
+    sc = (scriptgen.write_long(g, idea, inspo, minutes, use_llm=not a.no_llm, doc=a.mode == "doc") if minutes
           else scriptgen.write_script(g, idea, inspo, use_llm=not a.no_llm))
     name = time.strftime("%Y%m%d-%H%M") + f"-{g['name']}{f'-{minutes:g}min' if minutes else ''}-" + slug(sc["title"], 32); d = str(WORK / name); os.makedirs(d, exist_ok=True)
     json.dump(sc, open(os.path.join(d, "story.json"), "w", encoding="utf-8"), indent=1, ensure_ascii=False)
@@ -45,7 +45,7 @@ def main():
         timeline.write_ass(tl, os.path.join(d, "captions.ass"), g, size); stock.render(tl, d, g, size, a.mode)
     tl = json.load(open(os.path.join(d, "timeline.json")))
     out = OUTPUT / name; out.mkdir(parents=True, exist_ok=True); final = str(out / "final.mp4")
-    step("5/7 music + mix"); timeline.music_and_mix(d, final, g)
+    step("5/7 music + mix"); timeline.music_and_mix(d, final, g, doc=a.mode == "doc")
     step("6/7 thumbnail"); thumb = thumbnail.make(final, sc.get("thumb_text") or sc["title"], str(out / "thumbnail.jpg"),
                                                   total=tl["total"], color=g.get("thumb_color", "#ffe34a"))
     meta = {k: sc.get(k) for k in ("title", "description", "tags")}; meta["genre"] = g["name"]; meta["format"] = f"{minutes:g}min" if minutes else "short"

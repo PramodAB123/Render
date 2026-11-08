@@ -179,10 +179,16 @@ def _visuals(g, lines):
     return result
 
 
-def write_long(g, idea, inspo, minutes, use_llm=True):
+DOC_TONE = (" Documentary narration: a calm, authoritative narrator, vivid scene-setting, concrete details, "
+            "dates and places where they fit, building suspense chapter by chapter.")
+
+
+def write_long(g, idea, inspo, minutes, use_llm=True, doc=False):
     if not use_llm:
         raise SystemExit("Long videos need the Ollama script writer (remove --no-llm).")
     chapters = max(3, min(8, round(minutes * 0.8)))   # fewer, longer chapters = fewer slow LLM calls
+    if doc:
+        g = dict(g, tone=g["tone"] + DOC_TONE)
     words_total = int(minutes * WPM); target = max(60, words_total // chapters)
     ins = ("Trending titles (tone only, do not copy):\n- " + "\n- ".join(inspo)) if inspo else ""
     plan, chs = {}, []
@@ -226,7 +232,10 @@ def write_long(g, idea, inspo, minutes, use_llm=True):
             text = (text + " " + g["cta"]).strip()
         story.append(text)
         print(f"  chapter {n}/{len(chs)}: {c['heading']}  ({len(text.split())} words, total {sum(len(t.split()) for t in story)})")
-    lines = _to_lines(" ".join(story), lo=22, hi=40)   # ~10-15 s per scene
+    lines, heads = [], []   # ~10-15 s per scene; remember where each chapter starts (title cards)
+    for c, text in zip(chs, story):
+        part = _to_lines(text, lo=22, hi=40)
+        heads += [c["heading"]] + [None] * (len(part) - 1); lines += part
     got = sum(len(l.split()) for l in lines)
     if got < words_total * 0.6:
         print(f"  note: script is {got} words (~{got / WPM:.1f} min), shorter than the {minutes:g} min asked; making it anyway")
@@ -234,6 +243,9 @@ def write_long(g, idea, inspo, minutes, use_llm=True):
         raise SystemExit("The script writer returned nothing (is Ollama running?). Nothing was uploaded. Please run again.")
     print(f"  {len(lines)} scenes; adding clip searches and image prompts")
     plan["lines"] = _visuals(g, lines)
+    for ln, h in zip(plan["lines"], heads):
+        if h:
+            ln["chapter"] = h
     return plan
 
 

@@ -24,7 +24,8 @@
       1920,
       1080
     ],
-    "long_caption_size": 60
+    "long_caption_size": 60,
+    "crossfade": 0.8
   },
   "youtube": {
     "privacy": "private",
@@ -366,6 +367,73 @@
       ],
       "category_id": "24",
       "image_style": "mysterious documentary still, fog, muted colours, dim light, film grain, photorealistic"
+    },
+    "history": {
+      "niche": "cinematic history documentaries and forgotten true stories",
+      "idea_queries": [
+        "history documentary",
+        "forgotten history story",
+        "ancient mystery documentary"
+      ],
+      "seed_ideas": [
+        "The lost Roman legion that marched into the fog and vanished",
+        "The night a whole medieval town danced until they collapsed",
+        "The lighthouse keepers of Flannan Isles who disappeared in 1900"
+      ],
+      "tone": "cinematic history documentary. Calm, authoritative narrator, vivid period detail, real places and dates, say 'reportedly' or 'historians believe' for anything uncertain, end each chapter on a question that pulls the viewer on.",
+      "cta": "Subscribe for more forgotten history.",
+      "visual_style": "historic",
+      "visual_hint": "old ruins, castles, ancient stone, candles, old maps, battlefields, foggy landscapes (e.g. \"castle ruins\", \"old map\", \"foggy hills\")",
+      "grade": "eq=contrast=1.1:saturation=0.75,colorbalance=rs=0.06:rm=0.03:bs=-0.04,vignette=PI/4,noise=alls=6:allf=t",
+      "voice": {
+        "edge_voice": "en-GB-RyanNeural",
+        "rate": "-6%",
+        "pitch": "-3Hz",
+        "fx": "aecho=0.8:0.5:40:0.12"
+      },
+      "music": {
+        "bpm": 66,
+        "gain": 0.8,
+        "chords": [
+          [
+            50,
+            57,
+            62,
+            65
+          ],
+          [
+            46,
+            53,
+            58,
+            62
+          ],
+          [
+            43,
+            50,
+            55,
+            58
+          ],
+          [
+            45,
+            52,
+            57,
+            61
+          ]
+        ]
+      },
+      "gap": 0.3,
+      "highlight": "&H0060C8FF",
+      "caption_size": 88,
+      "thumb_color": "#ffc860",
+      "tags": [
+        "history",
+        "documentary",
+        "historymystery",
+        "truestory",
+        "ancienthistory"
+      ],
+      "category_id": "27",
+      "image_style": "cinematic historical documentary still, period accurate, natural window light, 35mm film grain, muted colours, photorealistic"
     }
   },
   "image": {
@@ -378,6 +446,7 @@
     ],
     "max_images": 24,
     "negative": "text, watermark, logo, cartoon, anime, 3d render, deformed, disfigured, extra limbs, blurry, lowres, nsfw, gore",
-    "max_images_mix": 10
+    "max_images_mix": 10,
+    "max_images_doc": 12
   }
 }

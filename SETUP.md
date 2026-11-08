@@ -55,6 +55,10 @@ written by Ollama in parts (outline first, then each chapter), subtitles at the 
 - `stock`: Pixabay (and Pexels if you have a key) clips.
 - `ai`: every scene is an AI image, generated free on the runner's CPU, with slow zoom/pan (Ken Burns) motion.
 - `mix`: AI image and stock clip alternate (best balance of realism and speed).
+- `doc`: documentary look. Chapter openings and every other scene are AI stills with slow camera moves, the rest are
+  Pixabay clips (slowed slightly); crossfades between scenes, fade-through-black + "CHAPTER N" title cards, cinematic
+  black bars, narrator tone, and sound design (whoosh on cuts, low boom on chapters, quiet drone). Best with `history`,
+  `mystery` or `horror` and 3-10 min. At most 12 AI images per video.
 - `cinema`: the 3D code-rendered room (Shorts only).
 
 **AI images**: model `Lykon/dreamshaper-8-lcm` (Stable Diffusion 1.5 fine-tune), license CreativeML OpenRAIL-M, which

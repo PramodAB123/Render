@@ -31,7 +31,12 @@ def write_ass(tl, path, g, size=None):
            "[V4+ Styles]",
            "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
            f"Style: Cap,{v['caption_font']},{fs},&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,{outline},3,{align},80,80,{margin},1",
+           f"Style: Title,{v['caption_font']},{int(fs * 1.5)},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,-1,0,0,0,100,100,6,0,1,3,0,5,80,80,0,1",
            "", "[Events]", "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text"]
+    for k, s in enumerate(tl["segs"]):
+        if long_form and s.get("chapter"):
+            out.append(f"Dialogue: 1,{_ts(s['start'])},{_ts(s['start'] + 3.2)},Title,,0,0,0,,{{\\fad(600,600)}}"
+                       f"{{\\fs{int(fs * 0.55)}}}CHAPTER {sum(1 for x in tl['segs'][:k + 1] if x.get('chapter'))}\\N{{\\fs{int(fs * 1.5)}}}{s['chapter'].upper()}")
     for s in tl["segs"]:
         if s.get("nocap"):
             continue
@@ -61,7 +66,30 @@ def _voice_track(d, tl):
     sf.write(os.path.join(d, "voice.wav"), np.clip(buf, -1, 1), SR)
 
 
-def music_and_mix(d, out_mp4, g):
+def _doc_sound(d, tl):
+    """Documentary sound design: soft whoosh on every cut, low boom on each chapter, quiet room-tone drone."""
+    import numpy as np, soundfile as sf
+    p = os.path.join(d, "sfx.wav"); fx, SR = sf.read(p, dtype="float32")
+    if fx.ndim > 1:
+        fx = fx.mean(axis=1)
+    rng = np.random.default_rng(3); N = len(fx)
+    def put(sig, t, g):
+        i = int(t * SR); n = min(len(sig), N - i)
+        if 0 <= i < N and n > 0:
+            fx[i:i + n] += sig[:n] * g
+    def smooth(x, k):
+        c = np.cumsum(np.concatenate([np.zeros(k), x])); return (c[k:] - c[:-k]) / k
+    for k, s in enumerate(tl["segs"]):
+        if k:
+            n = int(0.9 * SR); w = smooth(rng.uniform(-1, 1, n + 40), 40)[:n] * np.sin(np.linspace(0, np.pi, n)) ** 2
+            put(w, s["start"] - 0.6, 0.18)
+        if s.get("chapter"):
+            x = np.arange(int(2.5 * SR)) / SR; put(np.sin(2 * np.pi * (36 + 30 * np.exp(-x * 4)) * x) * np.exp(-x * 1.6), s["start"], 0.55)
+    drone = smooth(rng.normal(0, 1, N + 400), 400)[:N]; drone *= 0.05 / (np.abs(drone).max() + 1e-9)
+    sf.write(p, np.clip(fx + drone, -1, 1), SR)
+
+
+def music_and_mix(d, out_mp4, g, doc=False):
     """Synth genre music bed + SFX (code-cinema), or a free track from music/<genre>/, then duck under the voice + mix."""
     tl = json.load(open(os.path.join(d, "timeline.json")))
     py(CINEMA / "tools" / "sfx.py", d)
@@ -80,6 +108,8 @@ def music_and_mix(d, out_mp4, g):
                         os.path.join(d, "music.wav")], check=True)
     else:
         print(f"  music: synthesized {g['name']} bed (add free tracks to music/{g['name']}/ to use your own)")
+    if doc:
+        _doc_sound(d, tl)
     _voice_track(d, tl)
     f = (f"[1]aformat=channel_layouts=stereo,asplit[voice][key];"
          f"[2]aformat=channel_layouts=stereo,volume=0.9[mus];[mus][key]sidechaincompress=threshold=0.03:ratio=6:attack=20:release=300[duck];"

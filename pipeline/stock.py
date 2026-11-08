@@ -77,44 +77,79 @@ def _ken_burns(i, W, H, fps, n):
             f"zoompan=z='{z}':x='{x}':y='ih/2-ih/zoom/2':d={n}:s={W}x{H}:fps={fps}")
 
 
+def _plan(S, visuals, ic):
+    """Which scenes get an AI image. doc: chapter openings + every other scene, stock clips in between."""
+    if visuals == "ai":
+        want = [True] * len(S); cap = ic.get("max_images", 24)
+    elif visuals == "mix":
+        want = [i % 2 == 0 for i in range(len(S))]; cap = ic.get("max_images_mix", 10)
+    elif visuals == "doc":
+        want = [bool(s.get("chapter")) or i % 2 == 1 for i, s in enumerate(S)]; cap = ic.get("max_images_doc", 12)
+    else:
+        return [False] * len(S)
+    out, n = [], 0
+    for w in want:
+        out.append(w and n < cap); n += 1 if (w and n < cap) else 0
+    return out
+
+
 def render(tl, d, g, size, visuals="stock"):
-    """visuals: stock | ai | mix. Writes d/video.mp4 with captions."""
+    """visuals: stock | ai | mix | doc. Writes d/video.mp4 with captions.
+    doc = documentary look: AI stills with slow camera moves + stock footage, crossfades, cinematic bars."""
     W, H = size; portrait = H > W; fps = load_config()["video"]["fps"]; S = tl["segs"]; used = set(); parts = []
-    ic = load_config()["image"]; max_ai = ic.get("max_images_mix", 10) if visuals == "mix" else ic.get("max_images", 24)
-    planned = min(max_ai, sum(1 for i in range(len(S)) if visuals == "ai" or i % 2 == 0)) if visuals in ("ai", "mix") else 0
-    ai_count = 0
+    ic = load_config()["image"]; plan = _plan(S, visuals, ic); planned = sum(plan); ai_count = 0
+    doc = visuals == "doc"; T = load_config()["video"].get("crossfade", 0.8) if doc else 0; Tf = int(round(T * fps))
+    base = []
     for i, s in enumerate(S):
         a = 0 if i == 0 else S[i]["start"]; b = S[i + 1]["start"] if i + 1 < len(S) else tl["total"]; ln = round(b - a, 3)
-        n = max(1, int(round(ln * fps))); part = os.path.join(d, f"part{i}.mp4"); parts.append(part)
-        want_ai = visuals == "ai" or (visuals == "mix" and i % 2 == 0)
+        nb = max(1, int(round(ln * fps))); base.append(nb)
+        n = nb + (Tf if i + 1 < len(S) else 0)          # extra frames overlap with the next scene's crossfade
+        part = os.path.join(d, f"part{i}.mp4"); parts.append(part)
         grade = f"{g.get('grade', 'null')},format=yuv420p"; src = None; vf = None
-        if want_ai and ai_count < max_ai:
+        if plan[i]:
             img = os.path.join(d, f"img{i}.png")
             try:
                 import imagegen
                 t0 = time.time()
-                imagegen.generate(s.get("image") or s.get("visual") or s["text"], img, portrait, g.get("image_style", ""), seed=i)
+                imagegen.generate(s.get("image") or s.get("visual") or s["text"], img, portrait,
+                                  g.get("image_style", "") + (", documentary film still" if doc else ""), seed=i)
                 ai_count += 1; dt = time.time() - t0
-                print(f"  scene {i}/{len(S)}: AI image {ai_count}/{planned} in {dt:.0f}s  ({(s.get('image') or s.get('visual') or '')[:60]})")
+                print(f"  scene {i + 1}/{len(S)}: AI image {ai_count}/{planned} in {dt:.0f}s  ({(s.get('image') or s.get('visual') or '')[:60]})")
                 if ai_count == 1 and planned > 1:
                     print(f"  (about {dt * (planned - 1) / 60:.0f} more minutes for the remaining AI images)")
                 src = ["-i", img]; vf = _ken_burns(i, W, H, fps, n) + ",setsar=1," + grade
             except Exception as e:
-                print(f"  scene {i}: AI image failed ({type(e).__name__}: {str(e)[:100]}) - using stock footage")
+                print(f"  scene {i + 1}: AI image failed ({type(e).__name__}: {str(e)[:100]}) - using stock footage")
         if src is None:
             clip = find_clip(s.get("visual") or s["text"], used, g.get("visual_style", ""), portrait)
             if clip:
-                print(f"  scene {i}: clip {clip.name}  ({s.get('visual')})")
+                print(f"  scene {i + 1}/{len(S)}: clip {clip.name}  ({s.get('visual')})")
                 src = ["-stream_loop", "-1", "-i", str(clip)]
-                vf = f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},fps={fps},setsar=1," + grade
+                slow = "setpts=1.25*PTS," if doc else ""   # documentary: slightly slowed, calmer footage
+                vf = f"{slow}scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},fps={fps},setsar=1," + grade
             else:
-                print(f"  scene {i}: no stock key/result - dark placeholder")
+                print(f"  scene {i + 1}: no stock key/result - dark placeholder")
                 src = ["-f", "lavfi", "-i", f"color=c=0x0d1117:s={W}x{H}:r={fps}"]; vf = "noise=alls=12:allf=t," + grade
         subprocess.run([FFMPEG, "-v", "error", "-y", *src, "-frames:v", str(n), "-vf", vf, "-an",
                         "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-r", str(fps), part], check=True)
+    subs = "ass=captions.ass" + (":fontsdir=C\\\\:/Windows/Fonts" if IS_WIN else "")
+    if doc and len(parts) > 1:
+        # crossfade every cut; dip through black at each new chapter
+        inputs = []; fl = []; prev = "[0:v]"; off = 0.0
+        for p in parts:
+            inputs += ["-i", os.path.basename(p)]
+        for k in range(1, len(parts)):
+            off += base[k - 1] / fps
+            tr = "fadeblack" if S[k].get("chapter") else "fade"
+            fl.append(f"{prev}[{k}:v]xfade=transition={tr}:duration={T}:offset={off:.3f}[x{k}]"); prev = f"[x{k}]"
+        bars = ",drawbox=x=0:y=0:w=iw:h=ih*0.1:color=black:t=fill,drawbox=x=0:y=ih*0.9:w=iw:h=ih*0.1:color=black:t=fill" if not portrait else ""
+        fl.append(f"{prev}format=yuv420p{bars},{subs}[v]")
+        subprocess.run([FFMPEG, "-v", "error", "-y", *inputs, "-filter_complex", ";".join(fl), "-map", "[v]",
+                        "-c:v", "libx264", "-crf", "20", "-preset", "medium", "-pix_fmt", "yuv420p", "video.mp4"], check=True, cwd=d)
+        return
     with open(os.path.join(d, "parts.txt"), "w") as f:
         f.writelines(f"file 'part{i}.mp4'\n" for i in range(len(parts)))
     # burn captions; run inside d so the ass filter gets a plain relative path on Windows
     subprocess.run([FFMPEG, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", "parts.txt",
-                    "-vf", "ass=captions.ass" + (":fontsdir=C\\\\:/Windows/Fonts" if IS_WIN else ""), "-c:v", "libx264", "-crf", "20",
+                    "-vf", subs, "-c:v", "libx264", "-crf", "20",
                     "-preset", "medium", "-pix_fmt", "yuv420p", "video.mp4"], check=True, cwd=d)

@@ -11,17 +11,17 @@ on:
         description: "Genre - changes script tone, clips, colours, voice, music and pacing"
         default: "horror"
         type: choice
-        options: [horror, comedy, science, motivation, mystery]
+        options: [horror, comedy, science, motivation, mystery, history]
       length:
         description: "Short = vertical YouTube Short (~30 s). Minutes = 16:9 narrated video"
         default: "short"
         type: choice
         options: [short, 1 min, 3 min, 5 min, 10 min]
       mode:
-        description: "Visuals: stock clips, AI images (free, made on the runner), mix of both, or cinema (3D room, Shorts only)"
+        description: "Visuals: stock clips, ai images, mix, doc (documentary look), or cinema (3D room, Shorts only)"
         default: "stock"
         type: choice
-        options: [stock, ai, mix, cinema]
+        options: [stock, ai, mix, doc, cinema]
       idea:
         description: "Optional idea (leave empty to use trending YouTube ideas)"
         required: false
@@ -71,12 +71,12 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Free AI image model (CPU) for ai / mix visuals
-        if: ${{ inputs.mode == 'ai' || inputs.mode == 'mix' }}
+        if: ${{ inputs.mode == 'ai' || inputs.mode == 'mix' || inputs.mode == 'doc' }}
         run: pip install -q torch --index-url https://download.pytorch.org/whl/cpu && pip install -q diffusers transformers accelerate safetensors
 
       - name: Restore the AI image model from cache
         id: hfcache
-        if: ${{ inputs.mode == 'ai' || inputs.mode == 'mix' }}
+        if: ${{ inputs.mode == 'ai' || inputs.mode == 'mix' || inputs.mode == 'doc' }}
         uses: actions/cache/restore@v6
         with: { path: /home/runner/.cache/huggingface, key: "hf-dreamshaper-8-lcm" }
 
@@ -143,7 +143,7 @@ jobs:
 
       - name: Save the AI image model to cache
         continue-on-error: true
-        if: ${{ always() && (inputs.mode == 'ai' || inputs.mode == 'mix') && steps.hfcache.outputs.cache-hit != 'true' }}
+        if: ${{ always() && (inputs.mode == 'ai' || inputs.mode == 'mix' || inputs.mode == 'doc') && steps.hfcache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v6
         with: { path: /home/runner/.cache/huggingface, key: "hf-dreamshaper-8-lcm" }
 
