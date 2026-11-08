@@ -18,10 +18,10 @@ on:
         type: choice
         options: [short, 1 min, 3 min, 5 min, 10 min]
       mode:
-        description: "Visuals: stock clips, ai images, mix, doc (documentary look), or cinema (3D room, Shorts only)"
+        description: "Visuals: stock clips, ai images, mix, doc (documentary look), 2d (animated cartoon story), or cinema (3D room, Shorts only)"
         default: "stock"
         type: choice
-        options: [stock, ai, mix, doc, cinema]
+        options: [stock, ai, mix, doc, 2d, cinema]
       idea:
         description: "Optional idea (leave empty to use trending YouTube ideas)"
         required: false
@@ -66,8 +66,8 @@ jobs:
           pip install -q -r requirements.txt
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --silent
 
-      - name: Chromium for the 3D cinema mode
-        if: ${{ inputs.mode == 'cinema' }}
+      - name: Chromium for the 3D cinema and 2D modes
+        if: ${{ inputs.mode == 'cinema' || inputs.mode == '2d' }}
         run: npx playwright install --with-deps chromium
 
       - name: Free AI image model (CPU) for ai / mix visuals
