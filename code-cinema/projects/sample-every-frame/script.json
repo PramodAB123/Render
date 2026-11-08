@@ -1,0 +1,114 @@
+{
+ "voice": "am_michael",
+ "speed": 1.05,
+ "cfg": {
+  "size": [
+   1080,
+   1920
+  ],
+  "fps": 30,
+  "note": "SKILL >\nPROMPT",
+  "captionPos": "top"
+ },
+ "music": {
+  "bpm": 84,
+  "gain": 1.0
+ },
+ "segs": [
+  {
+   "say": "This room wasn't filmed. And it wasn't made in Blender.",
+   "shot": "screen_push",
+   "look": "golden",
+   "screen": {
+    "type": "title",
+    "text": "BLENDER",
+    "strike": true,
+    "strikeAt": 2.5
+   },
+   "strike": [
+    "Blender."
+   ]
+  },
+  {
+   "say": "Everyone keeps asking how I make these.",
+   "shot": "low_hero",
+   "screen": {
+    "type": "app"
+   }
+  },
+  {
+   "say": "If you just type a prompt,",
+   "shot": "screen_full",
+   "screen": {
+    "type": "app",
+    "typed": "cozy retro room",
+    "click": true,
+    "cps": 17
+   },
+   "minDur": 1.7
+  },
+  {
+   "say": "you get this.",
+   "shot": "orbit_wide",
+   "look": "flat",
+   "gap": 0.5,
+   "minDur": 1.5
+  },
+  {
+   "say": "But this is what you get with my pipeline.",
+   "shot": "wide_window",
+   "look": "golden",
+   "hl": [
+    "pipeline."
+   ]
+  },
+  {
+   "say": "It gives Claude the eye of a real cinematographer.",
+   "shot": "screen_full",
+   "screen": {
+    "type": "xp",
+    "role": "cinematographer",
+    "skill": "code-cinema",
+    "typed": "cozy retro room",
+    "from": 1200,
+    "to": 9800,
+    "checks": [
+     "camera",
+     "light",
+     "motion",
+     "sound"
+    ]
+   },
+   "hl": [
+    "cinematographer."
+   ]
+  },
+  {
+   "say": "Camera moves. Sunlight through the blinds. Dust in the air.",
+   "shot": "keyboard_slide",
+   "screen": {
+    "type": "levelup",
+    "text": "LEVEL UP"
+   }
+  },
+  {
+   "say": "Every single frame is code.",
+   "shot": "pull_back",
+   "hl": [
+    "code."
+   ]
+  },
+  {
+   "say": "Comment ROOM and I'll send it to you.",
+   "shot": "cta",
+   "cta": "ROOM",
+   "nocap": true,
+   "ctaTop": "Comment",
+   "ctaBottom": "and I'll send it to you",
+   "minDur": 2.6,
+   "screen": {
+    "type": "off"
+   }
+  }
+ ]
+}

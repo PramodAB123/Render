@@ -1,0 +1,131 @@
+{
+ "cfg": {
+  "size": [
+   1080,
+   1920
+  ],
+  "fps": 30,
+  "note": "SKILL >\nPROMPT",
+  "captionPos": "top"
+ },
+ "segs": [
+  {
+   "shot": "screen_push",
+   "look": "golden",
+   "screen": {
+    "type": "title",
+    "text": "BLENDER",
+    "strike": true,
+    "strikeAt": 2.5
+   },
+   "strike": [
+    "Blender."
+   ],
+   "text": "This room wasn't filmed. And it wasn't made in Blender.",
+   "start": 0.25,
+   "dur": 3.2
+  },
+  {
+   "shot": "low_hero",
+   "screen": {
+    "type": "app"
+   },
+   "text": "Everyone keeps asking how I make these.",
+   "start": 3.57,
+   "dur": 2.288
+  },
+  {
+   "shot": "screen_full",
+   "screen": {
+    "type": "app",
+    "typed": "cozy retro room",
+    "click": true,
+    "cps": 17
+   },
+   "minDur": 1.7,
+   "text": "If you just type a prompt,",
+   "start": 5.978,
+   "dur": 1.7
+  },
+  {
+   "shot": "orbit_wide",
+   "look": "flat",
+   "gap": 0.5,
+   "minDur": 1.5,
+   "text": "you get this.",
+   "start": 7.798,
+   "dur": 1.5
+  },
+  {
+   "shot": "wide_window",
+   "look": "golden",
+   "hl": [
+    "pipeline."
+   ],
+   "text": "But this is what you get with my pipeline.",
+   "start": 9.798,
+   "dur": 2.126
+  },
+  {
+   "shot": "screen_full",
+   "screen": {
+    "type": "xp",
+    "role": "cinematographer",
+    "skill": "code-cinema",
+    "typed": "cozy retro room",
+    "from": 1200,
+    "to": 9800,
+    "checks": [
+     "camera",
+     "light",
+     "motion",
+     "sound"
+    ]
+   },
+   "hl": [
+    "cinematographer."
+   ],
+   "text": "It gives Claude the eye of a real cinematographer.",
+   "start": 12.044,
+   "dur": 2.827
+  },
+  {
+   "shot": "keyboard_slide",
+   "screen": {
+    "type": "levelup",
+    "text": "LEVEL UP"
+   },
+   "text": "Camera moves. Sunlight through the blinds. Dust in the air.",
+   "start": 14.991,
+   "dur": 3.274
+  },
+  {
+   "shot": "pull_back",
+   "hl": [
+    "code."
+   ],
+   "text": "Every single frame is code.",
+   "start": 18.385,
+   "dur": 1.55
+  },
+  {
+   "shot": "cta",
+   "cta": "ROOM",
+   "nocap": true,
+   "ctaTop": "Comment",
+   "ctaBottom": "and I'll send it to you",
+   "minDur": 2.6,
+   "screen": {
+    "type": "off"
+   },
+   "text": "Comment ROOM and I'll send it to you.",
+   "start": 20.055,
+   "dur": 2.6
+  }
+ ],
+ "total": 24.05,
+ "music": {
+  "bpm": 84,
+  "gain": 1.0
+ }
+}

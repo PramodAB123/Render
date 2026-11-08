@@ -1,0 +1,8 @@
+edge-tts
+kokoro-onnx
+soundfile
+numpy
+requests
+pillow
+google-api-python-client
+google-auth-oauthlib

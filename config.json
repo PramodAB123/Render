@@ -1,0 +1,21 @@
+{
+  "niche": "survival horror story shorts",
+  "idea_queries": ["scary survival story shorts", "what would you do horror short", "night shift horror story"],
+  "seed_ideas": [
+    "The babysitter hears footsteps upstairs but the kids are asleep downstairs",
+    "Your car breaks down on an empty road and someone knocks on the window",
+    "The night guard notices one camera shows a room that does not exist"
+  ],
+
+  "mode": "stock",
+  "llm": {"model": "llama3.2:3b", "host": "http://localhost:11434"},
+
+  "voice": {"engine": "edge", "edge_voice": "en-US-GuyNeural", "edge_rate": "+5%",
+            "kokoro_voice": "am_michael", "speed": 1.0},
+
+  "video": {"size": [1080, 1920], "fps": 30, "caption_font": "Arial Black", "caption_size": 92,
+            "highlight": "&H004AE3FF", "music_gain": 0.9},
+
+  "youtube": {"privacy": "private", "category_id": "24", "made_for_kids": false,
+              "synthetic_media": true, "default_tags": ["shorts", "horror", "survival", "story"]}
+}

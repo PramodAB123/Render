@@ -1,0 +1,89 @@
+# Runs the whole pipeline on GitHub's free cloud runners (nothing runs on your PC).
+# Daily at 13:30 UTC (7 PM India), or on demand: Actions tab > "Make video" > Run workflow.
+name: Make video
+
+on:
+  schedule:
+    - cron: "30 13 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "stock (Pexels/Pixabay clips) or cinema (3D code-rendered room)"
+        default: "stock"
+        type: choice
+        options: [stock, cinema]
+      idea:
+        description: "Optional idea (leave empty to use trending YouTube ideas)"
+        required: false
+      upload:
+        description: "Upload to YouTube"
+        type: boolean
+        default: true
+
+jobs:
+  make:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      LLM_MODEL: llama3.2:3b
+      OLLAMA_MODELS: /home/runner/.ollama/models
+      BROWSER_CHANNEL: ""            # use Playwright's bundled Chromium instead of Edge
+      YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+      PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+
+      - name: System packages (FFmpeg, fonts)
+        run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg fonts-dejavu-core fonts-inter
+
+      - name: Python + Node packages
+        run: |
+          pip install -q -r requirements.txt
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --silent
+
+      - name: Chromium for the 3D cinema mode
+        if: ${{ inputs.mode == 'cinema' }}
+        run: npx playwright install --with-deps chromium
+
+      - name: Cache the Ollama model
+        uses: actions/cache@v4
+        with: { path: /home/runner/.ollama/models, key: "ollama-${{ env.LLM_MODEL }}" }
+
+      - name: Ollama (free local LLM on the runner)
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          sudo systemctl stop ollama || true
+          nohup ollama serve > /tmp/ollama.log 2>&1 &
+          sleep 5
+          ollama pull "$LLM_MODEL"
+
+      - name: Make the video
+        env:
+          MODE: ${{ inputs.mode || 'stock' }}
+          IDEA: ${{ inputs.idea }}
+          WANT_UPLOAD: ${{ github.event_name == 'schedule' || inputs.upload }}
+        run: |
+          ARGS=(--mode "$MODE")
+          if [ -n "$IDEA" ]; then ARGS+=(--idea "$IDEA"); fi
+          if [ "$WANT_UPLOAD" = "true" ]; then
+            if [ -n "$YT_REFRESH_TOKEN" ]; then ARGS+=(--upload); else echo "No YT_REFRESH_TOKEN secret yet - skipping upload"; fi
+          fi
+          python run.py "${ARGS[@]}"
+
+      - name: Keep the video (download from the run page for 14 days)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video
+          path: output/
+          retention-days: 14
