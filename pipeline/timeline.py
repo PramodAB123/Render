@@ -26,7 +26,7 @@ def write_ass(tl, path, g, size=None):
     """Shorts: big centred 3-word pop captions. Long videos (16:9): subtitle-style lines at the bottom."""
     v = load_config()["video"]; W, H = size or v["size"]; hlc = g.get("highlight", "&H004AE3FF"); long_form = W > H
     fs = v.get("long_caption_size", 60) if long_form else g.get("caption_size", v["caption_size"])
-    align, margin, per, outline = (2, 80, 7, 4) if long_form else (5, 0, 3, 7)
+    align, margin, per, outline = (2, 80, 8, 4) if long_form else (5, 0, 3, 7)
     out = ["[Script Info]", "ScriptType: v4.00+", f"PlayResX: {W}", f"PlayResY: {H}", "",
            "[V4+ Styles]",
            "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",

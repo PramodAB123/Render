@@ -80,7 +80,7 @@ def _ken_burns(i, W, H, fps, n):
 def render(tl, d, g, size, visuals="stock"):
     """visuals: stock | ai | mix. Writes d/video.mp4 with captions."""
     W, H = size; portrait = H > W; fps = load_config()["video"]["fps"]; S = tl["segs"]; used = set(); parts = []
-    max_ai = load_config()["image"].get("max_images", 80); ai_count = 0
+    max_ai = load_config()["image"].get("max_images", 24); ai_count = 0
     for i, s in enumerate(S):
         a = 0 if i == 0 else S[i]["start"]; b = S[i + 1]["start"] if i + 1 < len(S) else tl["total"]; ln = round(b - a, 3)
         n = max(1, int(round(ln * fps))); part = os.path.join(d, f"part{i}.mp4"); parts.append(part)

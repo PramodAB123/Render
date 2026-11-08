@@ -33,7 +33,7 @@ on:
 jobs:
   make:
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    timeout-minutes: 120   # safety cap so a stuck run can't use up your free minutes
     env:
       LLM_MODEL: llama3.2:3b
       OLLAMA_MODELS: /home/runner/.ollama/models

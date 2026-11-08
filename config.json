@@ -370,13 +370,13 @@
   },
   "image": {
     "model": "Lykon/dreamshaper-8-lcm",
-    "steps": 6,
+    "steps": 4,
     "guidance": 1.5,
     "size": [
       768,
       432
     ],
-    "max_images": 80,
+    "max_images": 24,
     "negative": "text, watermark, logo, cartoon, anime, 3d render, deformed, disfigured, extra limbs, blurry, lowres, nsfw, gore"
   }
 }

@@ -100,7 +100,7 @@ WPM = 150  # narration speed (words per minute)
 def _ollama(prompt, num_predict=2048, as_json=True):
     cfg = load_config()["llm"]
     body = {"model": os.environ.get("LLM_MODEL", cfg["model"]), "prompt": prompt, "stream": False,
-            "options": {"temperature": 0.85, "num_ctx": 8192, "num_predict": num_predict, "repeat_penalty": 1.1}}
+            "options": {"temperature": 0.85, "num_ctx": 4096, "num_predict": num_predict, "repeat_penalty": 1.1}}
     if as_json:
         body["format"] = "json"
     r = requests.post(f'{cfg["host"]}/api/generate', json=body, timeout=1800)
@@ -121,6 +121,15 @@ def _clean(text):
             continue
         keep.append(t.strip('"'))
     return " ".join(keep)
+
+
+def _trim(text, max_words):
+    """Cut to at most max_words, ending on a full sentence."""
+    w = text.split()
+    if len(w) <= max_words:
+        return text
+    cut = " ".join(w[:max_words]); end = max(cut.rfind(". "), cut.rfind("! "), cut.rfind("? "))
+    return cut[:end + 1] if end > len(cut) // 2 else cut
 
 
 def _to_lines(text, lo=10, hi=24):
@@ -173,7 +182,7 @@ def _visuals(g, lines):
 def write_long(g, idea, inspo, minutes, use_llm=True):
     if not use_llm:
         raise SystemExit("Long videos need the Ollama script writer (remove --no-llm).")
-    chapters = max(3, min(12, round(minutes * 1.4)))
+    chapters = max(3, min(8, round(minutes * 0.8)))   # fewer, longer chapters = fewer slow LLM calls
     words_total = int(minutes * WPM); target = max(60, words_total // chapters)
     ins = ("Trending titles (tone only, do not copy):\n- " + "\n- ".join(inspo)) if inspo else ""
     plan, chs = {}, []
@@ -197,7 +206,7 @@ def write_long(g, idea, inspo, minutes, use_llm=True):
                 (f'End the chapter with this exact sentence: "{g["cta"]}"' if n == len(chs) else "")
         prev = ("The story so far ends with: " + " ".join(story[-1].split()[-60:])) if story else ""
         text = ""
-        for attempt in range(4):   # write, then keep extending until the chapter reaches its word target
+        for attempt in range(3):   # write, then extend (max 2 times) until the chapter is long enough
             try:
                 if not text:
                     text = _clean(_ollama(CHAPTER.format(minutes=minutes, genre=g["name"], title=plan.get("title", idea),
@@ -210,13 +219,14 @@ def write_long(g, idea, inspo, minutes, use_llm=True):
                     text = (text + " " + more).strip()
             except Exception as e:
                 print(f"  chapter {n} retry ({e})")
-            if len(text.split()) >= target * 0.85:
+            if len(text.split()) >= target * 0.75:
                 break
+        text = _trim(text, int(target * 1.25))  # don't overshoot the length
         if n == len(chs) and g["cta"].lower().rstrip(".") not in text.lower():
             text = (text + " " + g["cta"]).strip()
         story.append(text)
         print(f"  chapter {n}/{len(chs)}: {c['heading']}  ({len(text.split())} words, total {sum(len(t.split()) for t in story)})")
-    lines = _to_lines(" ".join(story))
+    lines = _to_lines(" ".join(story), lo=22, hi=40)   # ~10-15 s per scene
     got = sum(len(l.split()) for l in lines)
     if got < words_total * 0.6:
         print(f"  note: script is {got} words (~{got / WPM:.1f} min), shorter than the {minutes:g} min asked; making it anyway")

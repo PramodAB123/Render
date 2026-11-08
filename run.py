@@ -29,14 +29,15 @@ def main():
         print("  the 3D cinema room is vertical-only; using mix (AI images + stock) for this long video"); a.mode = "mix"
     print(f"== genre: {g['name']}  mode: {a.mode}  length: {f'{minutes:g} min (16:9)' if minutes else 'Short (9:16)'}")
 
-    print("1/7 idea");     idea, inspo = (a.idea, []) if a.idea else ideas.pick_idea(g)
-    print("2/7 script")
+    step = lambda s: print(f"{s}   [{(time.time() - t0) / 60:.1f} min]", flush=True)
+    step("1/7 idea");     idea, inspo = (a.idea, []) if a.idea else ideas.pick_idea(g)
+    step("2/7 script")
     sc = (scriptgen.write_long(g, idea, inspo, minutes, use_llm=not a.no_llm) if minutes
           else scriptgen.write_script(g, idea, inspo, use_llm=not a.no_llm))
     name = time.strftime("%Y%m%d-%H%M") + f"-{g['name']}{f'-{minutes:g}min' if minutes else ''}-" + slug(sc["title"], 32); d = str(WORK / name); os.makedirs(d, exist_ok=True)
     json.dump(sc, open(os.path.join(d, "story.json"), "w", encoding="utf-8"), indent=1, ensure_ascii=False)
-    print("3/7 voice");    durs = voice.voice_lines(sc["lines"], d, g)
-    print(f"4/7 visuals ({a.mode})")
+    step("3/7 voice");    durs = voice.voice_lines(sc["lines"], d, g)
+    step(f"4/7 visuals ({a.mode})")
     if a.mode == "cinema":
         cinema.render(sc, d, g, fast=not a.full_quality)
     else:
@@ -44,8 +45,8 @@ def main():
         timeline.write_ass(tl, os.path.join(d, "captions.ass"), g, size); stock.render(tl, d, g, size, a.mode)
     tl = json.load(open(os.path.join(d, "timeline.json")))
     out = OUTPUT / name; out.mkdir(parents=True, exist_ok=True); final = str(out / "final.mp4")
-    print("5/7 music + mix"); timeline.music_and_mix(d, final, g)
-    print("6/7 thumbnail"); thumb = thumbnail.make(final, sc.get("thumb_text") or sc["title"], str(out / "thumbnail.jpg"),
+    step("5/7 music + mix"); timeline.music_and_mix(d, final, g)
+    step("6/7 thumbnail"); thumb = thumbnail.make(final, sc.get("thumb_text") or sc["title"], str(out / "thumbnail.jpg"),
                                                   total=tl["total"], color=g.get("thumb_color", "#ffe34a"))
     meta = {k: sc.get(k) for k in ("title", "description", "tags")}; meta["genre"] = g["name"]; meta["format"] = f"{minutes:g}min" if minutes else "short"
     if stock.USED_CREDITS:  # Pexels/Pixabay ask creators to be credited
