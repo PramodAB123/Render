@@ -15,7 +15,7 @@ MODELS = ROOT / "models"
 os.environ["PATH"] = str(BIN) + os.pathsep + os.environ.get("PATH", "")
 FFMPEG = str(BIN / "ffmpeg.exe") if (BIN / "ffmpeg.exe").exists() else "ffmpeg"
 IS_WIN = os.name == "nt"
-os.environ.setdefault("FFMPEG", FFMPEG)
+os.environ["FFMPEG"] = FFMPEG   # always the exe we use (an FFMPEG variable from the system may point to a folder)
 os.environ.setdefault("KOKORO_DIR", str(MODELS))
 
 

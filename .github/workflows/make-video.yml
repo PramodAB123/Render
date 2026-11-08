@@ -23,10 +23,10 @@ on:
         type: choice
         options: [portrait, landscape]
       mode:
-        description: "Visuals: stock clips, ai images, mix, doc (documentary look), 2d (animated cartoon story), or cinema (3D room, Shorts only)"
+        description: "Visuals: stock clips, ai images, mix, doc (documentary look), 2d (animated cartoon story), stick (stick-figure explainer), or cinema (3D room, Shorts only)"
         default: "stock"
         type: choice
-        options: [stock, ai, mix, doc, 2d, cinema]
+        options: [stock, ai, mix, doc, 2d, stick, cinema]
       idea:
         description: "Optional idea (leave empty to use trending YouTube ideas)"
         required: false
@@ -69,7 +69,7 @@ jobs:
       # MIT-licensed animation kit by Artem Novitckii, pinned to a tested commit. The 2D engine uses its
       # OFL fonts (Inter Tight, Poppins) and follows its stick-figure skill rules (word-timed 1-2 word captions,
       # whip transitions, impacts, safe area, 2.7-3 words/s pacing).
-      - name: claude-animation-skills (fonts + style rules for 2d)
+      - name: claude-animation-skills (stick-figure engine + fonts)
         uses: actions/checkout@v7
         with:
           repository: artemnovitckii/claude-animation-skills
@@ -81,8 +81,8 @@ jobs:
           pip install -q -r requirements.txt
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --silent
 
-      - name: Chromium for the 3D cinema and 2D modes
-        if: ${{ inputs.mode == 'cinema' || inputs.mode == '2d' }}
+      - name: Chromium for the 3D cinema, 2D and stick modes
+        if: ${{ inputs.mode == 'cinema' || inputs.mode == '2d' || inputs.mode == 'stick' }}
         run: npx playwright install --with-deps chromium
 
       - name: Free AI image model (CPU) for ai / mix visuals
