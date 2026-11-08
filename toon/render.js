@@ -9,7 +9,7 @@ const srv = http.createServer((q, r) => { const u = decodeURIComponent(q.url.spl
   await new Promise(r => srv.listen(0, r)); const port = srv.address().port;
   const tl = JSON.parse(fs.readFileSync(path.join(PROJ, 'toon.json'), 'utf8'));
   const b = await chromium.launch({channel: (process.env.BROWSER_CHANNEL ?? 'msedge') || undefined});
-  const p = await b.newPage({viewport: {width: 1080, height: 1920}}); p.on('pageerror', e => console.error('pageerror:', e.message));
+  const [VW, VH] = tl.size || [1080, 1920]; const p = await b.newPage({viewport: {width: VW, height: VH}}); p.on('pageerror', e => console.error('pageerror:', e.message));
   await p.goto(`http://localhost:${port}/toon.html`, {waitUntil: 'networkidle'}); await p.waitForFunction(() => window.ready); await p.evaluate(tl => window.init(tl), tl);
   const grab = t => p.evaluate(t => { window.render(t); return document.getElementById('c').toDataURL('image/jpeg', .92); }, t);
   if (mode === 'preview') {

@@ -104,7 +104,7 @@ def _clean_line(l, prev):
 
 
 def write_story(g, idea, inspo, minutes=0):
-    seconds = int(minutes * 60) if minutes else 55
+    seconds = int(minutes * 60) if minutes else 30
     want_words = seconds * 2.5; n_lines = max(10, round(want_words / 10))
     ins = ("Trending titles (tone only, do not copy):\n- " + "\n- ".join(inspo)) if inspo else ""
     story = None
@@ -165,10 +165,10 @@ def write_story(g, idea, inspo, minutes=0):
                     "title": str(story.get("hook_title") or f"{a} OR {b}?")[:26].upper()}}
 
 
-def render(sc, tl, d, g, preview=False):
+def render(sc, tl, d, g, size=(1080, 1920), preview=False):
     """tl = timeline from timeline.build_timeline (segs carry shot/place/... fields). Writes d/video.mp4."""
     accent = g.get("thumb_color", "#e0262f"); hl = "#ffd23f" if accent.lower() != "#ffe500" else "#ffffff"
-    toon = {"segs": tl["segs"], "total": tl["total"], "cast": sc["cast"], "hud": sc["hud"], "choice": sc["choice"],
+    toon = {"size": list(size), "segs": tl["segs"], "total": tl["total"], "cast": sc["cast"], "hud": sc["hud"], "choice": sc["choice"],
             "style": {"accent": "#e0262f" if g["name"] in ("horror", "mystery") else accent, "hl": hl}}
     json.dump(toon, open(os.path.join(d, "toon.json"), "w", encoding="utf-8"), indent=1, ensure_ascii=False)
     env = dict(os.environ, NODE_PATH=str(ROOT / "node_modules"))

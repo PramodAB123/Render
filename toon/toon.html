@@ -8,7 +8,7 @@
 /* Toon engine: flat-vector 2D animated story, animated with GSAP timelines; every frame drawn in code (original art, no external images).
    window.init(timeline) then window.render(t). Timeline is written by pipeline/toon.py. */
 const C = document.getElementById('c'), X = C.getContext('2d');
-let W = 1080, H = 1920, TL = null, ST = {};
+let W = 1080, H = 1920, TL = null, ST = {}, LAND = false, K = 1;
 const F = '"Bebas Neue", Impact, sans-serif', FI = 'Inter, Arial, sans-serif';
 
 // ---------- helpers ----------
@@ -169,7 +169,7 @@ function hud(t, g) { const h = TL.hud || {}, s = g.s;
   const x0 = W / 2 - (pw + 20 + tw) / 2; pill(h.part || 'PART 1', x0 + pw / 2, 238, 34, '#ffd23f', '#111'); txt(h.title || '', x0 + pw + 20, 240, 34, '#fff', 'left'); }
 function caption(t, g) { const s = g.s; if (!s || s.shot == 'choice') return; const cs = CAPS[g.seg]; if (!cs) return;
   let c = cs[0]; for (const x of cs) if (t >= x.t0) c = x; const hl = (s.hl || []).map(w => w.toUpperCase().replace(/[^A-Z0-9']/g, ''));
-  const line = c.words.join(' ').toUpperCase(); X.save(); X.globalAlpha = clamp(c.a, 0, 1); X.translate(W / 2, H * 0.585 + c.y); X.scale(c.sc, c.sc);
+  const line = c.words.join(' ').toUpperCase(); X.save(); X.globalAlpha = clamp(c.a, 0, 1); X.translate(W / 2, (LAND ? H * 0.8 : H * 0.585) + c.y); X.scale(c.sc, c.sc);
   const size = fit(line, W - 140, 118); X.font = `${size}px ${F}`; let x = -X.measureText(line).width / 2;
   for (const w of c.words) { const up = w.toUpperCase(), ww = X.measureText(up + ' ').width, on = hl.includes(up.replace(/[^A-Z0-9']/g, ''));
     X.lineWidth = 16; X.strokeStyle = 'rgba(0,0,0,.9)'; X.textAlign = 'left'; X.textBaseline = 'middle'; X.strokeText(up, x, 0);
@@ -207,9 +207,9 @@ function statShot(t, a, d) { const v = String(d.value || ''); const num = parseF
   X.save(); X.globalAlpha = clamp(a.stat * 1.5, 0, 1); X.translate(W / 2, H * 0.36); const sc = 0.6 + 0.4 * a.stat; X.scale(sc, sc); txt(shown, 0, 0, fit(shown, W - 120, 260), TL.style.hl); X.restore();
   X.globalAlpha = clamp(a.stat * 1.5 - 0.3, 0, 1); txt(String(d.label || '').toUpperCase(), W / 2, H * 0.47, 70, '#fff'); X.globalAlpha = 1; }
 function choiceShot(t, a) { const c = TL.choice || {}; X.fillStyle = `rgba(0,0,0,${0.62 * a.q})`; X.fillRect(0, 0, W, H);
-  const qs = String(c.question || 'WHAT WOULD YOU DO?').toUpperCase(); X.globalAlpha = clamp(a.q, 0, 1); txt(qs, W / 2, H * 0.36 - (1 - a.q) * 40, fit(qs, W - 120, 76), '#fff'); X.globalAlpha = 1;
-  [[String(c.a || 'YES'), -230], [String(c.b || 'NO'), 230]].forEach(([s, dx], k) => { const p = a.btn[k]; if (p <= 0.001) return; X.save(); X.translate(W / 2 + dx, H * 0.46); X.scale(p, p); pill(s.toUpperCase(), 0, 0, 96, '#f6f6f6', '#111', '#000'); X.restore(); });
-  if (a.vote > 0.01) { X.save(); X.translate(W / 2, H * 0.6); X.scale(a.vote, a.vote); txt('VOTE IN THE', 0, -50, 70, '#fff'); txt('COMMENTS', 0, 40, 130 + 6 * Math.sin(t * 5), TL.style.accent); X.restore(); } }
+  const qs = String(c.question || 'WHAT WOULD YOU DO?').toUpperCase(); X.globalAlpha = clamp(a.q, 0, 1); txt(qs, W / 2, (LAND ? H * 0.38 : H * 0.36) - (1 - a.q) * 40, fit(qs, W - 120, 76), '#fff'); X.globalAlpha = 1;
+  [[String(c.a || 'YES'), -230], [String(c.b || 'NO'), 230]].forEach(([s, dx], k) => { const p = a.btn[k]; if (p <= 0.001) return; X.save(); X.translate(W / 2 + dx, LAND ? H * 0.52 : H * 0.46); X.scale(p, p); pill(s.toUpperCase(), 0, 0, 96, '#f6f6f6', '#111', '#000'); X.restore(); });
+  if (a.vote > 0.01) { X.save(); X.translate(W / 2, LAND ? H * 0.75 : H * 0.6); X.scale(a.vote, a.vote); txt('VOTE IN THE', 0, -50, 70, '#fff'); txt('COMMENTS', 0, 40, 130 + 6 * Math.sin(t * 5), TL.style.accent); X.restore(); } }
 function vignette(k) { const g = X.createRadialGradient(W / 2, H / 2, H * 0.25, W / 2, H / 2, H * 0.72); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(0,0,0,${k})`); X.fillStyle = g; X.fillRect(0, 0, W, H); }
 function transition(a) { if (a.wipe <= 0.001) return; const p = a.wipe; X.fillStyle = TL.style.accent;
   if (a.tr == 'wipe') { X.beginPath(); X.moveTo(W * (1 - p) * 1.6 - W * 0.3, 0); X.lineTo(W * 1.4, 0); X.lineTo(W * 1.4, H); X.lineTo(W * (1 - p) * 1.6 - W * 0.6, H); X.fill(); X.fillStyle = '#0b0d14'; X.beginPath(); X.moveTo(W * (1 - p) * 1.6 - W * 0.15, 0); X.lineTo(W * 1.4, 0); X.lineTo(W * 1.4, H); X.lineTo(W * (1 - p) * 1.6 - W * 0.45, H); X.fill(); }
@@ -227,17 +227,21 @@ function drawShot(t, g) { const s = g.s, a = A[g.seg], cast = TL.cast || [], st 
   else { place(t, st); weather(t, st);
     const showChar = ['char', 'chips', 'checklist', 'choice', 'stat'].includes(s.shot) || !s.shot;
     if (showChar && cast.length) { const who = cast.find(c => c.name == s.speaker) || cast[0], other = cast.find(c => c !== who);
-      const big = s.shot == 'char' || !s.shot, sc = big ? 1.45 : 1.05, by = (big ? H * 0.99 : H * 1.03) + (1 - a.charIn) * 420;
+      const big = s.shot == 'char' || !s.shot, sc = (big ? 1.45 : 1.05) * K, by = (LAND ? H * 1.02 : big ? H * 0.99 : H * 1.03) + (1 - a.charIn) * 420 * K;
       X.save(); X.translate(W / 2, by); X.scale(1 / a.squash, a.squash); X.translate(-W / 2, -by);
-      if (other && big && TL.segs.some(x => x.speaker == other.name)) character(other, W * 0.8, by + 40, sc * 0.78, t, false, 'calm', 2);
-      character(who, other && big && TL.segs.some(x => x.speaker == other.name) ? W * 0.38 : W * 0.5, by, sc, t, s.speaker == who.name, s.emotion || 'calm', 1);
+      if (other && big && TL.segs.some(x => x.speaker == other.name)) character(other, LAND ? W * 0.62 : W * 0.8, by + 40 * K, sc * 0.78, t, false, 'calm', 2);
+      const duo = other && big && TL.segs.some(x => x.speaker == other.name);
+      character(who, LAND ? (big ? W * (duo ? 0.3 : 0.38) : W * 0.2) : (duo ? W * 0.38 : W * 0.5), by, sc, t, s.speaker == who.name, s.emotion || 'calm', 1);
       X.restore();
-      if (who.pet && who.pet != 'none') pet(who.pet, W * 0.84, H * 0.985 + (1 - a.charIn) * 300, big ? 1.1 : 0.85, t); } }
+      if (who.pet && who.pet != 'none') pet(who.pet, LAND ? (big ? W * 0.55 : W * 0.33) : W * 0.84, H * 0.985 + (1 - a.charIn) * 300 * K, (big ? 1.1 : 0.85) * K, t); } }
   X.restore();
+  // landscape: props are drawn in their portrait layout, then moved to the right half below the HUD
+  if (LAND && ['chips', 'checklist', 'message', 'stat'].includes(s.shot)) { X.save(); X.translate(W * 0.7, H * 0.55); X.scale(0.72, 0.72); X.translate(-W / 2, -H * 0.4); }
   if (s.shot == 'chips') chipsShot(t, a, (s.data && s.data.items) || []);
   if (s.shot == 'checklist') checklistShot(t, a, s.data || {});
   if (s.shot == 'message') messageShot(t, a, s.data || {});
   if (s.shot == 'stat') statShot(t, a, s.data || {});
+  if (LAND && ['chips', 'checklist', 'message', 'stat'].includes(s.shot)) X.restore();
   if (s.shot == 'choice') choiceShot(t, a);
   vignette(0.55);
   if (st.tod == 'night' && s.shot != 'map') { X.fillStyle = 'rgba(10,15,45,.18)'; X.fillRect(0, 0, W, H); }
@@ -249,7 +253,7 @@ window.render = function (t) { MT.seek(t, false); const i = segAt(t), s = TL.seg
   if (FX.flash > 0.001) { X.fillStyle = `rgba(255,255,255,${FX.flash})`; X.fillRect(0, 0, W, H); }
   const f = Math.floor(t * 24); for (let n = 0; n < 260; n++) { X.fillStyle = `rgba(255,255,255,${0.05 * rnd(n * 3 + f)})`; X.fillRect(rnd(n * 7 + f) * W, rnd(n + f * 997) * H, 3, 3); }
   const fade = Math.min(clamp(t / 0.4, 0, 1), clamp((TL.total - t) / 0.6, 0, 1)); if (fade < 1) { X.fillStyle = `rgba(0,0,0,${1 - fade})`; X.fillRect(0, 0, W, H); } };
-window.init = async function (tl) { TL = tl; TL.style = Object.assign({ accent: '#e0262f', hl: '#ffd23f' }, tl.style || {});
+window.init = async function (tl) { TL = tl; if (tl.size) { W = tl.size[0]; H = tl.size[1]; C.width = W; C.height = H; } LAND = W > H; K = LAND ? H / 1920 * 1.55 : 1; TL.style = Object.assign({ accent: '#e0262f', hl: '#ffd23f' }, tl.style || {});
   if (!window.gsap) throw new Error('GSAP did not load (lib/gsap.min.js)');
   gsap.ticker.lagSmoothing(0); buildMotion();
   try { await document.fonts.load(`100px "Bebas Neue"`); await document.fonts.load(`600 40px Inter`); } catch (e) {}
