@@ -4,6 +4,8 @@ import requests
 from common import load_config, FFMPEG, WORK, IS_WIN
 
 CACHE = WORK / "clip_cache"
+CREDITS = {}   # clip id -> "creator (site) url"; USED_CREDITS goes into the YouTube description
+USED_CREDITS = []
 
 
 def _pexels(q, key):
@@ -15,6 +17,7 @@ def _pexels(q, key):
         if files:
             f = min(files, key=lambda f: abs(f["height"] - 1920))
             res.append((f"pexels{v['id']}", f["link"], v["duration"]))
+            CREDITS[f"pexels{v['id']}"] = f"{v.get('user', {}).get('name', 'Pexels')} (Pexels) {v.get('url', '')}"
     return res
 
 
@@ -25,7 +28,8 @@ def _pixabay(q, key):
         for size in ("large", "medium"):
             f = h["videos"].get(size) or {}
             if f.get("url"):
-                res.append((f"pixabay{h['id']}", f["url"], h["duration"])); break
+                res.append((f"pixabay{h['id']}", f["url"], h["duration"]))
+                CREDITS[f"pixabay{h['id']}"] = f"{h.get('user', 'Pixabay')} (Pixabay) {h.get('pageURL', '')}"; break
     return res
 
 
@@ -38,7 +42,7 @@ def find_clip(query, used, need):
             try:
                 for cid, url, dur in fn(q, keys[name]):
                     if cid not in used:
-                        used.add(cid); CACHE.mkdir(parents=True, exist_ok=True); p = CACHE / f"{cid}.mp4"
+                        used.add(cid); USED_CREDITS.append(CREDITS.get(cid, cid)); CACHE.mkdir(parents=True, exist_ok=True); p = CACHE / f"{cid}.mp4"
                         if not p.exists():
                             with requests.get(url, stream=True, timeout=120) as r:
                                 r.raise_for_status()

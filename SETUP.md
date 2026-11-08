@@ -40,9 +40,10 @@ a 3D cinema video about 20-30. A public repo has unlimited minutes (your keys st
 
 ### YouTube API limits
 
-- **Uploads from a new API project stay Private** until Google audits it. Make each video public in YouTube Studio,
-  or apply for the free audit: https://support.google.com/youtube/contact/yt_api_form . Default privacy is `private` in `config.json`.
-- **Free quota is 10,000 units a day.** An upload costs about 1,600 and each idea search 100, so a daily video fits easily.
+- **No billing, no paid tier.** Google does not sell YouTube API quota. Default: 10,000 units/day, plus up to
+  100 uploads and 100 searches a day (1 unit each); a custom thumbnail costs 50. One video a day uses well under 100 units.
+- Uploads go out as `private` by default (`config.json` > `youtube.privacy`) so you can check them first; set it to `public` when you trust it.
+- Pexels and Pixabay ask you to credit the creators: the pipeline adds a "Footage:" credits line to each description automatically.
 
 ## Settings (`config.json`, edit on github.com and commit)
 

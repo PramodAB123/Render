@@ -33,7 +33,10 @@ def main():
     out = OUTPUT / name; out.mkdir(parents=True, exist_ok=True); final = str(out / "final.mp4")
     print("5/7 music + mix"); timeline.music_and_mix(d, final)
     print("6/7 thumbnail"); thumb = thumbnail.make(final, sc.get("thumb_text") or sc["title"], str(out / "thumbnail.jpg"), total=tl["total"])
-    meta = {k: sc.get(k) for k in ("title", "description", "tags")}; meta["script"] = [l["say"] for l in sc["lines"]]
+    meta = {k: sc.get(k) for k in ("title", "description", "tags")}
+    if stock.USED_CREDITS:  # Pexels/Pixabay ask creators to be credited
+        meta["description"] = (meta.get("description") or "") + "\n\nFootage: " + "; ".join(stock.USED_CREDITS)
+ meta["script"] = [l["say"] for l in sc["lines"]]
     json.dump(meta, open(out / "meta.json", "w", encoding="utf-8"), indent=1, ensure_ascii=False)
     if a.upload:
         print("7/7 upload"); import upload; meta["youtube_id"] = upload.upload(final, meta, thumb)
