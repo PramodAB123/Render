@@ -1,4 +1,4 @@
-﻿"""Step 1: find ideas with the free YouTube Data API (search + stats). Falls back to the genre's seed ideas."""
+"""Step 1: find ideas with the free YouTube Data API (search + stats). Falls back to the genre's seed ideas."""
 import datetime as dt, json, os, random, sys
 import requests
 from common import WORK, genre_cfg
