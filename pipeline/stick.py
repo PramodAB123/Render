@@ -287,6 +287,45 @@ BG_STYLE = "detailed cartoon background art, painterly, rich colours, cinematic 
 BG_NEG = "people, person, human, man, woman, child, character, face, body, hands, crowd, text, letters, watermark"
 
 
+BD_PROPS = [(("treasure chest", "chest", "gold coins", "treasure"), "chest"), (("table", "desk"), "table"), (("map",), "map"),
+            (("campfire", "bonfire", "fire"), "campfire"), (("door", "gate"), "door"), (("throne",), "throne"), (("lamp", "lantern", "street light"), "lamp")]
+BD_EXTRA_PLACES = [(("temple", "ruins", "stone door", "skull symbol", "pyramid", "मंदिर"), "temple"), (("street", "road", "market"), "street"),
+                   (("kingdom", "king", "queen", "throne", "palace"), "kingdom")]
+
+
+PAL_ENVS = {"savanna", "jungle", "forest", "desert", "snow", "beach", "ocean", "ship", "city", "village", "farm", "mountain", "cave", "space", "moon",
+            "room", "castle", "graveyard", "temple", "kingdom", "street"}
+
+
+def paint_backgrounds(tl):
+    """Reads each scene's Visual text (or the line itself) -> what to paint: place, time of day, objects, effects."""
+    import world, screenplay as sp
+    env, tod, prev = None, "day", None
+    for i, sg in enumerate(tl["segs"]):
+        vis = str(sg.get("scene_visual") or sg.get("image") or "").lower(); say = str(sg.get("text") or "").lower()
+        key = sg.get("scene") if sg.get("scene") is not None else vis[:60] or i
+        if key != prev:
+            prev = key; t = vis or say
+            if sg.get("image") and sg.get("scene_visual"):   # a screenplay: its scene prompt already names the place (first mentioned, carried over)
+                pl = str(sg["image"]).lower()
+                SCREEN = [("a pirate ship in a violent storm", "ocean"), ("captain's cabin", "room"), ("deck", "ship"), ("island", "beach"), ("jungle", "jungle"),
+                          ("temple corridor", "temple"), ("stone temple", "temple"), ("treasure chamber", "temple"), ("graveyard", "graveyard"), ("castle hall", "kingdom"),
+                          ("battlefield", "kingdom"), ("forge", "village"), ("old house", "room"), ("town street", "street"), ("deep space", "space"),
+                          ("laboratory", "room"), ("desert", "desert"), ("mountains", "mountain"), ("ocean", "ocean")]
+                t = next((e for k, e in SCREEN if k in pl[:70]), None) or t
+            hits =[(0, t)] if t in PAL_ENVS else [(min(t.find(w) for w in ws if world._has(t, w)), v) for ws, v in BD_EXTRA_PLACES + world.PLACES if any(world._has(t, w) for w in ws)]
+            env = min(hits)[1] if hits else (env or {"sea": "ocean", "storm": "ocean", "jungle": "jungle", "temple": "temple", "ghost": "graveyard", "skeletons": "graveyard",
+                                                     "throne": "kingdom", "forge": "village", "armies": "kingdom", "kingdoms": "kingdom", "night": "village"}.get(sg.get("setup"), "village"))
+            tod = world._first(t, world.TOD) or sg.get("tod") or ("night" if env in ("graveyard", "space") else tod)
+            props = [p for ws, p in BD_PROPS if any(world._has(vis or say, w) for w in ws)][:3]
+        if not sg.get("fx"):
+            sg["fx"] = sp.fx_tags(vis + " " + say)
+        if not sg.get("music"):
+            sg["music"] = sp.music_feel(vis + " " + say)
+        sg["bgspec"] = {"env": env, "tod": tod, "props": props, "seed": 11 + __import__("zlib").crc32(str(key).encode()) % 97}
+    print("  painted backgrounds from the script: " + " > ".join(dict.fromkeys(f"{s['bgspec']['env']}/{s['bgspec']['tod']}" for s in tl["segs"])), flush=True)
+
+
 def ai_backgrounds(tl, web, g):
     """'ai' mode: one AI illustration per scene, made from the script's visual details (the screenplay's Visual notes,
     or the writer's 'image' line), drawn behind the stick characters like the reference videos."""
@@ -329,7 +368,9 @@ def render(sc, tl, d, g, size=(1080, 1920), ai=False):
                          "git clone https://github.com/artemnovitckii/claude-animation-skills vendor/animation-skills")
     work = os.path.join(d, "stick"); web = os.path.join(work, "web")
     shutil.rmtree(work, ignore_errors=True); shutil.copytree(ENGINE / "template" / "web", web)
-    shutil.copy(ROOT / "stick" / "auto_shots.js", os.path.join(web, "shots.js"))
+    open(os.path.join(web, "shots.js"), "w", encoding="utf-8").write(
+        open(ROOT / "stick" / "backdrop.js", encoding="utf-8").read() + "\n" + open(ROOT / "stick" / "auto_shots.js", encoding="utf-8").read())
+    paint_backgrounds(tl)   # every scene's background is drawn from the script (also the fallback when an AI picture fails)
     if ai:
         ai_backgrounds(tl, web, g)
     words = []
@@ -350,7 +391,7 @@ def render(sc, tl, d, g, size=(1080, 1920), ai=False):
             o["vest"] = c["vest"]
         return o
     cast_js = [f"C(PAL_X('{c['col']}'), {json.dumps(_look(c, i))})" for i, c in enumerate(sc["cast"])]
-    data = {"segs": [{k: s.get(k) for k in ("start", "dur", "setup", "mood", "who", "label", "tod", "ground", "hl", "words", "speaker", "bg", "fx")} for s in tl["segs"]],
+    data = {"segs": [{k: s.get(k) for k in ("start", "dur", "setup", "mood", "who", "label", "tod", "ground", "hl", "words", "speaker", "bg", "fx", "bgspec")} for s in tl["segs"]],
             "total": tl["total"], "style": {"accent": g.get("thumb_color", "#e0392f")}}
     open(os.path.join(web, "stick_data.js"), "w", encoding="utf-8").write(
         "window.STICK = " + json.dumps(data) + ";\nconst PAL_X = k => ({ cols: PAL[k] || PAL.red });\n"

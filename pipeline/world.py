@@ -30,7 +30,7 @@ HOME = {"lion": "savanna", "lioness": "savanna", "zebra": "savanna", "giraffe": 
 PLACES = [  # (words, env) - the place the scene names first wins; scenes that name none stay where they were
     (("savanna", "savannah", "grassland", "plains", "pride rock", "african"), "savanna"), (("jungle", "rainforest", "जंगल"), "jungle"),
     (("forest", "woods", "trees"), "forest"), (("desert", "sand dunes", "रेगिस्तान"), "desert"), (("snow", "arctic", "ice", "frozen", "glacier", "बर्फ"), "snow"),
-    (("underwater", "under the sea", "coral", "reef", "seabed"), "underwater"), (("beach", "shore", "coast"), "beach"), (("ship", "deck", "boat", "जहाज"), "ship"),
+    (("underwater", "under the sea", "coral", "reef", "seabed"), "underwater"), (("beach", "shore", "coast", "island"), "beach"), (("ship", "deck", "boat", "जहाज"), "ship"),
     (("ocean", "sea", "waves", "समुद्र"), "ocean"), (("city", "street", "town", "building", "road", "शहर"), "city"), (("village", "गांव"), "village"),
     (("farm", "barn", "field", "खेत"), "farm"), (("mountain", "cliff", "peak", "hill", "पहाड़"), "mountain"), (("cave", "tunnel", "गुफा"), "cave"),
     (("outer space", "in space", "galaxy", "planet", "rocket", "spaceship", "अंतरिक्ष"), "space"), (("moon",), "moon"), (("castle", "kingdom", "palace", "throne", "महल"), "castle"),

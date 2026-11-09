@@ -306,7 +306,9 @@ SETUPS.aibg = function (ctx, lt, t, s) {
   const img = window.BG && window.BG[s.bg]; const i = D.segs.indexOf(s); const dir = i % 2 ? 1 : -1;
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#111'; ctx.fillRect(0, 0, W, H);
   const hh = handheld(t, 2.5), fo = fxBefore(s, lt, t), z = 1.04 + lt * .022 + fo.z, px = dir * (8 + lt * 9) + fo.x;
-  if (img && img.naturalWidth) { ctx.save(); ctx.translate(540 + px + hh[0], 960 + hh[1] + fo.y); ctx.rotate(fo.r); ctx.scale(z + Math.abs(fo.r) * 2, z + Math.abs(fo.r) * 2); ctx.drawImage(img, -540, -960, 1080, 1920); ctx.restore(); }
+  const zz = z + Math.abs(fo.r) * 2;
+  if (img && img.naturalWidth) { ctx.save(); ctx.translate(540 + px + hh[0], 960 + hh[1] + fo.y); ctx.rotate(fo.r); ctx.scale(zz, zz); ctx.drawImage(img, -540, -960, 1080, 1920); ctx.restore(); }
+  else if (s.bgspec && typeof BD !== 'undefined') { ctx.save(); ctx.translate(540 + hh[0], 960 + hh[1] + fo.y); ctx.rotate(fo.r); ctx.scale(zz, zz); ctx.translate(-540, -960); BD.draw(ctx, s.bgspec, t, px); ctx.restore(); }   // painted from the script
   else { (SETUPS[s.base] || SETUPS.talk)(ctx, lt, t, s); return; }
   // ground shadow band so the characters sit in the picture
   const g = ctx.createLinearGradient(0, H * .72, 0, H); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.35)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
@@ -344,9 +346,9 @@ SETUPS.aibg = function (ctx, lt, t, s) {
 
 const SINGLE = ['bigtext', 'reveal', 'blueprint', 'treasuremap', 'temple'];   // keep in sync with pipeline/stick.py
 D.segs.forEach((s, i) => { const start = i == 0 ? 0 : s.start, end = i + 1 < D.segs.length ? D.segs[i + 1].start : D.total;
-  if (s.bg) { s.base = s.setup; } const fn = s.bg ? SETUPS.aibg : (SETUPS[s.setup] || SETUPS.talk); s.who = s.who || 0; const tr = (i % 3 == 2) ? 'cut' : 'whip';
+  if (s.bg || s.bgspec) { s.base = s.setup; } const fn = (s.bg || s.bgspec) ? SETUPS.aibg : (SETUPS[s.setup] || SETUPS.talk); s.who = s.who || 0; const tr = (i % 3 == 2) ? 'cut' : 'whip';
   if (end - start > 4.2 && !SINGLE.includes(s.setup)) {   // the skill keeps shots 2-4 s: second angle for long lines
-    const mid = start + (end - start) * .55, alt = s.bg ? ((ctx, lt, t, x) => SETUPS.aibg(ctx, lt, t, Object.assign({}, x, { base: x.base == 'closeup' ? 'talk' : 'closeup' }))) : (s.setup == 'closeup' ? SETUPS.talk : SETUPS.closeup);
+    const mid = start + (end - start) * .55, alt = (s.bg || s.bgspec) ? ((ctx, lt, t, x) => SETUPS.aibg(ctx, lt, t, Object.assign({}, x, { base: x.base == 'closeup' ? 'talk' : 'closeup' }))) : (s.setup == 'closeup' ? SETUPS.talk : SETUPS.closeup);
     SHOTS.push({ start, end: mid, tr: 'cut', draw(ctx, lt, t) { fn(ctx, lt, t, s); } });
     SHOTS.push({ start: mid, end, tr, draw(ctx, lt, t) { alt(ctx, lt, t, s); } });
   } else SHOTS.push({ start, end, tr, draw(ctx, lt, t) { fn(ctx, lt, t, s); } }); });
