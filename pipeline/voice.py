@@ -67,10 +67,21 @@ def voice_lines(lines, d, g):
     v = load_config()["voice"]; gv = g.get("voice", {}); eng = v.get("engine", "edge")
     os.makedirs(d, exist_ok=True); durs = []
     for i, ln in enumerate(lines):
-        raw = os.path.join(d, f"raw{i}" + (".mp3" if eng == "edge" else ".wav")); words = None
-        if eng == "kokoro":
-            _kokoro_say(ln["say"], raw, gv.get("kokoro_voice", v["kokoro_voice"]), v.get("speed", 1.0))
-        elif eng == "piper":
+        e = ln.get("engine") or eng   # a line may ask for its own engine (stick mode: the skill's Kokoro narrator)
+        if e == "kokoro" and not (MODELS / "kokoro-v1.0.onnx").exists():
+            e = "edge"
+        raw = os.path.join(d, f"raw{i}" + (".mp3" if e == "edge" else ".wav")); words = None
+        if e == "kokoro":
+            try:
+                _kokoro_say(ln["say"], raw, ln.get("kvoice") or gv.get("kokoro_voice", v["kokoro_voice"]), float(ln.get("kspeed") or v.get("speed", 1.0)))
+                import align
+                words = align.words(raw, ln["say"])   # Parakeet word timings, as the skill's align.py
+            except Exception as ex:
+                print(f"  kokoro failed on line {i} ({type(ex).__name__}); using the Edge voice"); e = "edge"
+                raw = os.path.join(d, f"raw{i}.mp3"); words = None
+        if e == "kokoro":
+            pass
+        elif e == "piper":
             _piper(ln["say"], raw)
         else:
             # a line can carry its own voice / rate / pitch (2D mode: each character speaks with its own voice)

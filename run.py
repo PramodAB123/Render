@@ -153,7 +153,13 @@ def main():
         sys.exit(f"The {a.mode} renderer did not produce a video. Nothing was uploaded.")
     tl = json.load(open(os.path.join(d, "timeline.json")))
     out = OUTPUT / name; out.mkdir(parents=True, exist_ok=True); final = str(out / "final.mp4")
-    step("5/7 music + mix"); timeline.music_and_mix(d, final, g, doc=a.mode == "doc", scenes=a.mode in ("stick", "2d"))
+    step("5/7 music + mix")
+    if a.mode == "stick":   # the stick-figure skill's own underscore, ducking and -14 LUFS master
+        import scene_sfx, stick_audio, soundfile as sf_, numpy as np_
+        timeline._voice_track(d, tl); sf_.write(os.path.join(d, "sfx.wav"), np_.zeros(int((tl["total"] + 1) * 44100), dtype="float32"), 44100)
+        scene_sfx.add(d, tl); stick_audio.mix(d, final, tl, g["name"])
+    else:
+        timeline.music_and_mix(d, final, g, doc=a.mode == "doc", scenes=a.mode == "2d")
     step("6/7 thumbnail"); thumb = thumbnail.make(final, sc.get("thumb_text") or sc["title"], str(out / "thumbnail.jpg"),
                                                   total=tl["total"], color=g.get("thumb_color", "#ffe34a"))
     thumbnail.sheet(final, str(out / "sheet.jpg"), tl["total"])   # quick-review contact sheet with the safe area marked

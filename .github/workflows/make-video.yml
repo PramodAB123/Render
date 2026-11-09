@@ -104,6 +104,30 @@ jobs:
         uses: actions/cache/restore@v6
         with: { path: /home/runner/.cache/huggingface, key: "hf-dreamshaper-8-lcm" }
 
+      # stick mode: the skill's free voice (Kokoro) and word timings (Parakeet), ~1 GB, downloaded once and cached
+      - name: Restore stick voice models from cache
+        id: voicecache
+        if: ${{ inputs.mode == 'stick' }}
+        uses: actions/cache/restore@v6
+        with: { path: models, key: "stick-voice-kokoro1-parakeet-v2" }
+
+      - name: Download stick voice models
+        if: ${{ inputs.mode == 'stick' && steps.voicecache.outputs.cache-hit != 'true' }}
+        continue-on-error: true   # without them stick mode falls back to the Edge voice
+        run: |
+          mkdir -p models
+          for f in kokoro-v1.0.onnx voices-v1.0.bin; do [ -s models/$f ] || curl -fL --retry 3 -o models/$f https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/$f; done
+          if ! ls -d models/sherpa-onnx-nemo-parakeet* >/dev/null 2>&1; then
+            curl -fL --retry 3 -o models/p.tar.bz2 https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8.tar.bz2
+            (cd models && tar xjf p.tar.bz2 && rm p.tar.bz2)
+          fi
+
+      - name: Save stick voice models to cache
+        if: ${{ inputs.mode == 'stick' && steps.voicecache.outputs.cache-hit != 'true' }}
+        continue-on-error: true
+        uses: actions/cache/save@v6
+        with: { path: models, key: "stick-voice-kokoro1-parakeet-v2" }
+
       - name: Restore Ollama (program + model) from cache
         id: ollamacache
         uses: actions/cache/restore@v6

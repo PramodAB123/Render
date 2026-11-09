@@ -13,7 +13,7 @@ def build_timeline(lines, durs, d, g, extra_cfg=None, gap=None):
         if ln.get("words"):   # word timings in video seconds (captions follow the voice word by word)
             seg["words"] = [{"w": w["w"], "s": round(t + w["s"], 3), "e": round(t + w["e"], 3)} for w in ln["words"]]
         segs.append(seg)
-        t += du + gap
+        t += du + float(ln.get("gap_after", gap))
     total = round(segs[-1]["start"] + segs[-1]["dur"] + TAIL, 2)
     tl = {"cfg": extra_cfg or {}, "segs": segs, "total": total, "music": g.get("music", {"bpm": 84, "gain": 1.0})}
     json.dump(tl, open(os.path.join(d, "timeline.json"), "w"), indent=1)

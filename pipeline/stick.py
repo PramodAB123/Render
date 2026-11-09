@@ -2,7 +2,7 @@
 (MIT, Artem Novitckii; checked out by the workflow into vendor/animation-skills). The engine's rig, props,
 whip transitions, 1-2 word lowercase Poppins captions and grade are used as they are; stick/auto_shots.js
 turns our story timeline into its shot list automatically."""
-import json, os, shutil, subprocess
+import json, os, re, shutil, subprocess
 import requests
 from common import load_config, ROOT, FFMPEG
 
@@ -145,6 +145,7 @@ def write_story(g, idea, inspo, secs):
             ln["who"] = next((k for k, c in enumerate(cast) if c["name"].lower() == ln["speaker"].lower()), ln["who"])
         else:
             ln["rate"] = {"scared": "+4%", "shocked": "+2%", "sad": "-8%"}.get(ln["mood"], "-4%")
+    skill_voice(lines, cast)
     print(f"  stick story: {story.get('title')!r}, {len(lines)} lines, cast: {', '.join(c['name'] for c in cast)}")
     return {"title": str(story.get("title") or idea)[:70], "description": str(story.get("description") or idea),
             "tags": [str(t) for t in story.get("tags", [])][:10], "thumb_text": str(story.get("thumb_text") or "WHAT IF")[:24],
@@ -152,6 +153,27 @@ def write_story(g, idea, inspo, secs):
 
 
 HINDI_VOICES = {"male": "hi-IN-MadhurNeural", "female": "hi-IN-SwaraNeural"}
+# the skill's free Kokoro narrator and some distinct character voices
+KOKORO = {"narrator": "am_michael", "male": ["am_adam", "bm_george", "bm_lewis", "am_eric"], "female": ["af_heart", "bf_emma", "af_bella", "af_nicole"]}
+KSPEED = {"calm": 1.12, "happy": 1.16, "scared": 1.2, "shocked": 1.18, "angry": 1.1, "sad": 1.0, "smug": 1.1, "dizzy": 1.05, "think": 1.06}
+
+
+def skill_voice(lines, cast):
+    """English stick videos use the skill's Kokoro voices and its near-gapless pacing: 0.12 s between lines,
+    a beat more after the hook and after questions/exclamations (tts_kokoro.py)."""
+    hindi = any(re.search(r"[\u0900-\u097F]", l["say"]) for l in lines)
+    kv, used = {}, set()
+    for k, c in enumerate(cast):
+        opts = [v for v in KOKORO[c.get("gender", "male")] if v not in used]; kv[c["name"].lower()] = (opts or KOKORO[c.get("gender", "male")])[0]; used.add(kv[c["name"].lower()])
+    for i, ln in enumerate(lines):
+        ln["gap_after"] = 0.24 if (i == 0 or ln["say"].rstrip().endswith(("?", "!"))) else 0.12
+        if hindi:
+            continue
+        ln["engine"] = "kokoro"; ln["kvoice"] = kv.get(str(ln.get("speaker", "")).lower(), KOKORO["narrator"])
+        ln["kspeed"] = 1.12 if ln["kvoice"] == KOKORO["narrator"] else KSPEED.get(ln.get("mood"), 1.12)
+        if any(c.get("ghost") and c["name"].lower() == str(ln.get("speaker", "")).lower() for c in cast):
+            ln["kspeed"] = 0.92
+    return lines
 
 
 def from_screenplay(g, text):
@@ -204,11 +226,24 @@ def from_screenplay(g, text):
         else:
             c = cast[idx[ln["speaker"]]]; mr, mp = MOOD.get(ln["mood"], MOOD["calm"])
             ln["voice"], ln["pitch"] = c["voice"], c["pitch"]; ln["rate"] = c["rate"] if c["ghost"] else mr
+    skill_voice(lines, cast)
     title = next((s["title"] for s in scenes if s["title"]), "My story")
     print(f"  screenplay: {len(scenes)} scenes, {len(lines)} spoken lines, {'Hindi' if hindi else 'English'} voices, cast: "
           + ", ".join(f"{c['name']} ({c['costume']}{', ghost' if c['ghost'] else ''})" for c in cast))
     return {"title": title[:70], "description": " ".join(s["title"] for s in scenes)[:300], "tags": [], "thumb_text": title.upper()[:24],
             "lines": lines, "cast": cast, "hindi": hindi}
+
+
+def _count_shots(tl):
+    """Same rule as stick/auto_shots.js: a line longer than 4.2 s becomes two shots (the skill keeps shots 2-4 s)."""
+    n = 0
+    for i, sg in enumerate(tl["segs"]):
+        a = 0 if i == 0 else sg["start"]; b = tl["segs"][i + 1]["start"] if i + 1 < len(tl["segs"]) else tl["total"]
+        n += 2 if (b - a) > 4.2 and sg.get("setup") not in SINGLE else 1
+    return n
+
+
+SINGLE = ("bigtext", "reveal", "blueprint", "treasuremap", "temple")
 
 
 def render(sc, tl, d, g, size=(1080, 1920)):
@@ -244,7 +279,24 @@ def render(sc, tl, d, g, size=(1080, 1920)):
     if os.environ.get("STICK_CHROME"):
         env["CHROME"] = os.environ["STICK_CHROME"]
     out = os.path.join(work, "silent.mp4")
-    subprocess.run(["node", str(ENGINE / "tools" / "render.js"), "video", out], check=True, cwd=work, env=env)
+    # like the skill's make.sh: render the shots in parallel workers, then join them
+    shots = _count_shots(tl)
+    workers = max(1, min(int(os.environ.get("WORKERS", os.cpu_count() or 4)), 8, shots))
+    procs = []
+    os.makedirs(os.path.join(work, "seg"), exist_ok=True)
+    for w in range(workers):
+        ids = ",".join(str(i) for i in range(w, shots, workers))
+        if ids:
+            procs.append(subprocess.Popen(["node", str(ENGINE / "tools" / "render.js"), "segments", ids], cwd=work, env=env,
+                                          stdout=open(os.path.join(work, "seg", f"log{w}.txt"), "w"), stderr=subprocess.STDOUT))
+    print(f"  rendering {shots} shots with {workers} workers (stick-figure skill make.sh)")
+    if any(p.wait() for p in procs):
+        raise SystemExit("A stick shot failed to render; see the seg/log*.txt files in the work folder.")
+    segs = sorted((f for f in os.listdir(os.path.join(work, "seg")) if re.fullmatch(r"shot_\d+\.mp4", f)), key=lambda f: int(re.findall(r"\d+", f)[0]))
+    if len(segs) != shots:
+        raise SystemExit(f"Only {len(segs)} of {shots} stick shots rendered.")
+    open(os.path.join(work, "seg", "list.txt"), "w").writelines(f"file '{f}'\n" for f in segs)
+    subprocess.run([FFMPEG, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", "list.txt", "-c", "copy", out], check=True, cwd=os.path.join(work, "seg"))
     W, H = size
     if W > H:   # the engine draws 9:16; for landscape put it on a blurred, widened copy of itself
         subprocess.run([FFMPEG, "-v", "error", "-y", "-i", out, "-filter_complex",

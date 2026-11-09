@@ -211,6 +211,11 @@ cast.ghostIdx = CAST.findIndex(c => c.ghost);
 if (cast.ghostIdx < 0) cast.ghostIdx = null;
 
 const SHOTS = [];
+const SINGLE = ['bigtext', 'reveal', 'blueprint', 'treasuremap', 'temple'];   // keep in sync with pipeline/stick.py
 D.segs.forEach((s, i) => { const start = i == 0 ? 0 : s.start, end = i + 1 < D.segs.length ? D.segs[i + 1].start : D.total;
-  const fn = SETUPS[s.setup] || SETUPS.talk; s.who = s.who || 0;
-  SHOTS.push({ start, end, tr: (i % 3 == 2) ? 'cut' : 'whip', draw(ctx, lt, t) { fn(ctx, lt, t, s); } }); });
+  const fn = SETUPS[s.setup] || SETUPS.talk; s.who = s.who || 0; const tr = (i % 3 == 2) ? 'cut' : 'whip';
+  if (end - start > 4.2 && !SINGLE.includes(s.setup)) {   // the skill keeps shots 2-4 s: second angle for long lines
+    const mid = start + (end - start) * .55, alt = s.setup == 'closeup' ? SETUPS.talk : SETUPS.closeup;
+    SHOTS.push({ start, end: mid, tr: 'cut', draw(ctx, lt, t) { fn(ctx, lt, t, s); } });
+    SHOTS.push({ start: mid, end, tr, draw(ctx, lt, t) { alt(ctx, lt, t, s); } });
+  } else SHOTS.push({ start, end, tr, draw(ctx, lt, t) { fn(ctx, lt, t, s); } }); });
