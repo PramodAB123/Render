@@ -58,7 +58,11 @@ def render_ai(a, sc, durs, gap, d, g, size):
 
 
 def render_cinema(a, sc, durs, gap, d, g, size):
-    cinema.render(sc, d, g, fast=not a.full_quality)
+    """3D world built from the script: the animals/people/places it names, filmed with the skill's camera angles."""
+    import world
+    tl = timeline.build_timeline(sc["lines"], durs, d, g, gap=gap)
+    world.render(sc, tl, d, g, size, fast=not a.full_quality)
+    json.dump(tl, open(os.path.join(d, "timeline.json"), "w"), indent=1)
 
 
 MODES = {
@@ -67,7 +71,7 @@ MODES = {
     "doc":    (script_narration, render_footage, "documentary: AI stills with camera moves, crossfades, chapter cards"),
     "2d":     (script_toon,      render_toon,    "2D flat-vector cartoon (toon/toon.html, GSAP)"),
     "stick":  (script_stick,     render_stick,   "stick-figure engine from claude-animation-skills (stick/auto_shots.js)"),
-    "cinema": (script_narration, render_cinema,  "3D code-cinema room (portrait, up to 1 min)"),
+    "cinema": (script_stick,     render_cinema,  "3D world built from the script (code-cinema skill: models, places, camera angles)"),
 }
 
 
@@ -105,8 +109,6 @@ def main():
         a.genre = theme.detect(src, cfg["genres"]) or "rotate"
     g = genre_cfg(a.genre); secs = parse_length(a.length); land = a.orientation == "landscape"
     size = cfg["video"]["long_size"] if land else cfg["video"]["size"]
-    if a.mode == "cinema" and (land or secs > 60):
-        sys.exit("cinema mode is portrait-only and up to 1 min. Pick portrait + 30 sec / 1 min, or another mode.")
     write_script, render_visuals, what = MODES[a.mode]
     print(f"== mode: {a.mode} ({what})\n== theme: {g['name']}  length: {secs} s  {a.orientation} {size[0]}x{size[1]}", flush=True)
 
@@ -128,7 +130,7 @@ def main():
     step(f"2/7 script ({write_script.__name__})")
     if says:   # your own script: keep every word; the writers only choose what we see
         bible = {}
-        if play and a.mode in ("stick", "ai"):
+        if play and a.mode in ("stick", "ai", "cinema"):
             sc = play
         elif write_script is script_narration:
             sc = custom.narration(g, says)
@@ -155,7 +157,7 @@ def main():
     json.dump(sc, open(os.path.join(d, "story.json"), "w", encoding="utf-8"), indent=1, ensure_ascii=False)
     step("3/7 voice");    durs = voice.voice_lines(sc["lines"], d, g)
     gap = None
-    if a.mode != "cinema":   # land close to the length that was picked (speed up or add pauses)
+    if True:   # land close to the length that was picked (speed up or add pauses)
         natural = sum(durs) + timeline.GAP * len(durs) + 1.7
         target = secs if not says or abs(natural - secs) <= secs * 0.3 else None   # a custom script keeps its own length if far off
         if says and target is None:
@@ -168,7 +170,7 @@ def main():
     tl = json.load(open(os.path.join(d, "timeline.json")))
     out = OUTPUT / name; out.mkdir(parents=True, exist_ok=True); final = str(out / "final.mp4")
     step("5/7 music + mix")
-    if a.mode in ("stick", "ai"):   # the stick-figure skill's own underscore, ducking and -14 LUFS master
+    if a.mode in ("stick", "ai", "cinema"):   # the stick-figure skill's own underscore, ducking and -14 LUFS master
         import scene_sfx, stick_audio, soundfile as sf_, numpy as np_
         timeline._voice_track(d, tl); sf_.write(os.path.join(d, "sfx.wav"), np_.zeros(int((tl["total"] + 1) * 44100), dtype="float32"), 44100)
         scene_sfx.add(d, tl); stick_audio.mix(d, final, tl, g["name"])

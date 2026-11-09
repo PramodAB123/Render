@@ -20,7 +20,7 @@ on:
         type: choice
         options: [portrait, landscape]
       mode:
-        description: "ai: AI-illustrated scenes + stick characters (reference style) | stick: drawn stick-figure scenes | 2d: flat cartoon | doc: documentary AI stills | cinema: 3D room"
+        description: "ai: AI-illustrated scenes + stick characters (reference style) | stick: drawn stick-figure scenes | 2d: flat cartoon | doc: documentary AI stills | cinema: 3D world built from the script (animals, people, places, camera angles)"
         default: "ai"
         type: choice
         options: [ai, stick, 2d, doc, cinema]
@@ -81,7 +81,7 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --silent
 
       - name: Chromium for the 3D cinema, 2D and stick modes
-        if: ${{ inputs.mode == 'cinema' || inputs.mode == '2d' || inputs.mode == 'stick' || inputs.mode == 'ai' || inputs.mode == '' }}
+        if: ${{ inputs.mode == 'cinema' || inputs.mode == '2d' || inputs.mode == 'stick' || inputs.mode == 'ai' || inputs.mode == 'cinema' || inputs.mode == '' }}
         run: npx playwright install --with-deps chromium
 
       - name: Free AI image model (CPU) for ai / mix visuals
@@ -97,12 +97,12 @@ jobs:
       # stick mode: the skill's free voice (Kokoro) and word timings (Parakeet), ~1 GB, downloaded once and cached
       - name: Restore stick voice models from cache
         id: voicecache
-        if: ${{ inputs.mode == 'stick' || inputs.mode == 'ai' || inputs.mode == '' }}
+        if: ${{ inputs.mode == 'stick' || inputs.mode == 'ai' || inputs.mode == 'cinema' || inputs.mode == '' }}
         uses: actions/cache/restore@v6
         with: { path: models, key: "stick-voice-kokoro1-parakeet-v2" }
 
       - name: Download stick voice models
-        if: ${{ (inputs.mode == 'stick' || inputs.mode == 'ai' || inputs.mode == '') && steps.voicecache.outputs.cache-hit != 'true' }}
+        if: ${{ (inputs.mode == 'stick' || inputs.mode == 'ai' || inputs.mode == 'cinema' || inputs.mode == '') && steps.voicecache.outputs.cache-hit != 'true' }}
         continue-on-error: true   # without them stick mode falls back to the Edge voice
         run: |
           mkdir -p models
@@ -113,7 +113,7 @@ jobs:
           fi
 
       - name: Save stick voice models to cache
-        if: ${{ (inputs.mode == 'stick' || inputs.mode == 'ai' || inputs.mode == '') && steps.voicecache.outputs.cache-hit != 'true' }}
+        if: ${{ (inputs.mode == 'stick' || inputs.mode == 'ai' || inputs.mode == 'cinema' || inputs.mode == '') && steps.voicecache.outputs.cache-hit != 'true' }}
         continue-on-error: true
         uses: actions/cache/save@v6
         with: { path: models, key: "stick-voice-kokoro1-parakeet-v2" }

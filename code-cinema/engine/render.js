@@ -10,7 +10,7 @@ const srv = http.createServer((q,r)=>{ const f = path.join(ENG, decodeURICompone
   const tl = JSON.parse(fs.readFileSync(path.join(PROJ, 'timeline.json'))); const [W, H] = (tl.cfg && tl.cfg.size) || [1080, 1920];
   const b = await chromium.launch({channel: (process.env.BROWSER_CHANNEL ?? 'msedge') || undefined, args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist']});
   const p = await b.newPage({viewport:{width:W, height:H}}); p.on('console', m => { if(m.type()==='error') console.error('page:', m.text()); }); p.on('pageerror', e => console.error('pageerror:', e.message));
-  await p.goto(`http://localhost:${port}/scene.html`); await p.waitForFunction(() => window.ready); await p.evaluate(tl => window.init(tl), tl);
+  await p.goto(`http://localhost:${port}/${process.env.CINEMA_PAGE || 'scene.html'}`); await p.waitForFunction(() => window.ready); await p.evaluate(tl => window.init(tl), tl);
   const grab = t => p.evaluate(t => { window.render(t); return document.getElementById('c').toDataURL('image/jpeg', .93); }, t);
   if(mode === 'preview'){
     for(const t of process.argv.slice(4).map(Number)){ const d = await grab(t); fs.writeFileSync(path.join(PROJ, `preview_${t}.jpg`), Buffer.from(d.split(',')[1], 'base64')); console.log('preview', t); }
