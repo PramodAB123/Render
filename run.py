@@ -13,7 +13,7 @@ There is no fallback between modes: an unknown mode, or a renderer that fails, s
 import argparse, json, os, re, sys, time
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "pipeline"))
 from common import load_config, genre_cfg, slug, WORK, OUTPUT  # noqa: E402
-import ideas, scriptgen, voice, timeline, stock, cinema, thumbnail, toon, stick, reference, storycraft, custom  # noqa: E402
+import ideas, scriptgen, voice, timeline, stock, cinema, thumbnail, toon, stick, reference, storycraft, custom, screenplay  # noqa: E402
 
 
 # ---------------------------------------------------------------- script writers
@@ -98,7 +98,8 @@ def main():
 
     step = lambda s: print(f"{s}   [{(time.time() - t0) / 60:.1f} min]", flush=True)
     step("1/7 idea")
-    says = custom.split(a.script)
+    play = stick.from_screenplay(g, a.script) if a.script and screenplay.looks_like(a.script) else None   # a full screenplay
+    says = [l["say"] for l in play["lines"]] if play else custom.split(a.script)
     if says:
         print(f"  custom script: {len(says)} lines, {sum(len(s.split()) for s in says)} words (used word for word)")
     if reference.is_link(a.idea) and not a.reference:   # a link pasted into the idea box counts as a reference
@@ -113,10 +114,18 @@ def main():
     step(f"2/7 script ({write_script.__name__})")
     if says:   # your own script: keep every word; the writers only choose what we see
         bible = {}
-        if write_script is script_narration:
+        if play and a.mode == "stick":
+            sc = play
+        elif write_script is script_narration:
             sc = custom.narration(g, says)
         else:
             sc = write_script(a, g, custom.brief(says, a.idea), [], secs); sc["lines"] = custom.align(sc["lines"], says)
+        if play and sc is not play:   # other modes: keep the screenplay's voices, and use its Visual notes for images/clips
+            for l, p in zip(sc["lines"], play["lines"]):
+                l.update({k: p[k] for k in ("voice", "rate", "pitch", "speaker") if k in p})
+                if p.get("scene_visual") and write_script is script_narration:
+                    l["image"] = p["scene_visual"][:300]; l["visual"] = " ".join(p["scene_title"].split()[-3:]) or l.get("visual")
+            sc["title"] = play["title"]
     else:
         bible = {} if a.no_llm else storycraft.plan(g, idea, inspo, secs)   # plan a gripping story first
         brief = idea if a.no_llm else "\n".join(x for x in (idea, storycraft.craft(g), storycraft.bible_text(bible), storycraft.rules()) if x)

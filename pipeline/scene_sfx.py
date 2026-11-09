@@ -32,6 +32,7 @@ def ambience(kind, d):
     if kind == "wind": return _noise(d, 200) * (0.6 + 0.4 * np.sin(_t(d) * 0.8)) * 2.2
     if kind == "water": return _noise(d, 25) * .35
     if kind == "crowd": x = _t(d); return _noise(d, 40) * np.minimum(1, x / 1.5) * .9
+    if kind == "rain": return _noise(d, 3) * .35 + _noise(d, 80) * .6
     return np.zeros(int(d * SR))
 
 
@@ -40,6 +41,8 @@ SCENES = {   # setup/shot -> (ambience, gain, hits)
     "bridge": ("water", .4, None), "sea": ("water", .45, None), "impact": (None, 0, "boom"), "reveal": (None, 0, "chime"),
     "blueprint": (None, 0, "stamp"), "messenger": ("wind", .2, "run"), "run": (None, 0, "run"), "walk": (None, 0, "walk"),
     "bigtext": (None, 0, "pop"), "throne": ("fire", .15, None), "black": ("wind", .3, None), "map": (None, 0, None),
+    "storm": ("rain", .55, "thunder"), "treasuremap": (None, 0, "chime"), "jungle": ("wind", .3, None), "skeletons": ("wind", .3, "clink"),
+    "temple": ("wind", .25, "boom"), "ghost": ("wind", .45, "heart"),
 }
 
 
@@ -63,6 +66,18 @@ def add(d, tl, gain=0.38):
         amb, ag, hit = SCENES.get(kind, (None, 0, None))
         if amb:
             sig = ambience(amb, d_); fade = np.minimum(1, np.minimum(np.arange(len(sig)), len(sig) - np.arange(len(sig))) / (.25 * SR)); put(sig * fade, a, gain * ag)
+        for tag in s.get("sfx") or []:   # SFX notes written in the screenplay
+            if tag in ("water", "wind", "rain", "fire"):
+                sig = ambience(tag, d_); put(sig * np.minimum(1, np.arange(len(sig)) / (.3 * SR)), a, gain * .4)
+            elif tag == "boom": put(boom(), a + .4, gain * 1.2)
+            elif tag == "clink": put(clink(), a + .6, gain)
+            elif tag == "chime": put(chime(), a + .5, gain)
+            elif tag == "whoosh": put(whoosh(), a + .5, gain)
+            elif tag == "pop": put(pop(), a + .3, gain)
+            elif tag == "steps":
+                for t in np.arange(a, b, .35): put(step(), t, gain * .6)
+            elif tag == "creak": put(_noise(.8, 300) * np.exp(-_t(.8) * 3) * 3, a + .3, gain)
+        if hit == "thunder": put(boom(), a + .2, gain * 1.8); put(_noise(1.5, 8) * np.exp(-_t(1.5) * 2), a + .2, gain * .8)
         if hit == "boom": put(boom(), a + .05, gain * 1.6)
         elif hit == "chime": put(chime(), a + .7, gain)
         elif hit == "pop": put(pop(), a + .05, gain)

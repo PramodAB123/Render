@@ -8,7 +8,8 @@ from common import load_config, ROOT, FFMPEG
 
 ENGINE = ROOT / "vendor" / "animation-skills" / "skills" / "stick-figure" / "engine"
 SETUPS = ["closeup", "talk", "walk", "run", "crowd", "object", "reveal", "night", "impact", "sea", "bigtext", "think",
-          "kingdoms", "armies", "forge", "throne", "blueprint", "bridge", "messenger"]
+          "kingdoms", "armies", "forge", "throne", "blueprint", "bridge", "messenger",
+          "storm", "treasuremap", "jungle", "skeletons", "temple", "ghost"]
 COSTUMES = ["none", "crown", "helmet", "hood", "wizard", "cap", "bandana", "sailor", "captain"]
 MOODS = ["calm", "happy", "scared", "shocked", "angry", "sad", "smug", "dizzy", "think"]
 COLS = ["red", "blue", "yellow", "green", "navy", "purple"]
@@ -150,6 +151,66 @@ def write_story(g, idea, inspo, secs):
             "lines": lines, "cast": cast}
 
 
+HINDI_VOICES = {"male": "hi-IN-MadhurNeural", "female": "hi-IN-SwaraNeural"}
+
+
+def from_screenplay(g, text):
+    """Your own screenplay -> stick story without the LLM: only Narrator/Dialogue lines are spoken, the Visual/Animation
+    notes pick each line's scene, the SFX notes become sound effects, and every character gets a costume and voice."""
+    import screenplay as sp
+    scenes, spoken = sp.parse(text)
+    if not spoken:
+        raise SystemExit("The screenplay has no Narrator or Dialogue lines in quotes, so there is nothing to say.")
+    hindi = sp.is_hindi(spoken)
+    names = []
+    for l in spoken:
+        if l["speaker"] != "narrator" and l["speaker"] not in names:
+            names.append(l["speaker"])
+    cast = []
+    for i, n in enumerate(names or ["Hero"]):
+        low = n.lower(); ghost = "ghost" in low or "spirit" in low
+        costume = "captain" if "captain" in low else "crown" if ("king" in low or "queen" in low) else "helmet" if "soldier" in low else "bandana"
+        gender = "female" if any(w in low for w in ("queen", "girl", "woman", "mother", "lady", "princess", "she")) else "male"
+        cast.append({"name": n, "col": ["red", "yellow", "blue", "green", "purple", "navy"][i % 6], "costume": costume, "gender": gender, "ghost": ghost})
+    idx = {c["name"]: k for k, c in enumerate(cast)}
+    lines, prev_scene = [], -1
+    for l in spoken:
+        sc = scenes[l["scene"]]; setup, tod = sp.direct(sc); first = l["scene"] != prev_scene; prev_scene = l["scene"]
+        who = idx.get(l["speaker"], 0)
+        if l["speaker"].lower().startswith("ghost"):
+            setup = "ghost"
+        elif not first or not setup:
+            setup = "closeup" if "!" in l["say"] or not setup else ("talk" if l["speaker"] != "narrator" else setup)
+        mood = sp.mood(l, setup)
+        lines.append({"say": l["say"], "speaker": l["speaker"], "setup": setup, "mood": mood, "who": who, "label": sp.LABEL.get(setup, ""),
+                      "tod": tod, "ground": "sea" if setup in ("sea", "storm") else "floor" if setup in ("temple", "throne", "forge") else "grass",
+                      "hl": "", "sfx": sp.sfx_tags(sc["sfx"]) if first else [], "scene_visual": sc["visual"], "scene_title": sc["title"]})
+    # voices: Hindi scripts get the free Hindi Edge voices; each character a different pitch/speed so they sound distinct
+    from toon import VOICES, MOOD
+    tweaks = [("-6Hz", "-2%"), ("+10Hz", "+6%"), ("-1Hz", "+3%"), ("+5Hz", "-3%"), ("-10Hz", "+0%")]
+    for k, c in enumerate(cast):
+        if hindi:
+            c["voice"] = HINDI_VOICES[c["gender"]]; c["pitch"], c["rate"] = tweaks[k % len(tweaks)]
+            if c["ghost"]:
+                c["pitch"], c["rate"] = "-18Hz", "-12%"
+        else:
+            c["voice"] = VOICES[(c["gender"], "adult")][k % len(VOICES[(c["gender"], "adult")])]
+            c["pitch"], c["rate"] = ("-14Hz", "-10%") if c["ghost"] else ("+0Hz", "+0%")
+    for ln in lines:
+        if ln["speaker"] == "narrator":
+            if hindi:
+                ln["voice"] = HINDI_VOICES["male"]
+            ln["rate"] = "-4%"
+        else:
+            c = cast[idx[ln["speaker"]]]; mr, mp = MOOD.get(ln["mood"], MOOD["calm"])
+            ln["voice"], ln["pitch"] = c["voice"], c["pitch"]; ln["rate"] = c["rate"] if c["ghost"] else mr
+    title = next((s["title"] for s in scenes if s["title"]), "My story")
+    print(f"  screenplay: {len(scenes)} scenes, {len(lines)} spoken lines, {'Hindi' if hindi else 'English'} voices, cast: "
+          + ", ".join(f"{c['name']} ({c['costume']}{', ghost' if c['ghost'] else ''})" for c in cast))
+    return {"title": title[:70], "description": " ".join(s["title"] for s in scenes)[:300], "tags": [], "thumb_text": title.upper()[:24],
+            "lines": lines, "cast": cast, "hindi": hindi}
+
+
 def render(sc, tl, d, g, size=(1080, 1920)):
     """Builds a web folder from the engine + our shots, renders it with the engine's own renderer -> d/video.mp4."""
     if not (ENGINE / "template" / "web" / "chars.js").exists():
@@ -166,13 +227,16 @@ def render(sc, tl, d, g, size=(1080, 1920)):
     open(os.path.join(web, "warp.js"), "w", encoding="utf-8").write("window.WARP = null;\n")
     engine_hats = {"bandana": "bandana", "sailor": "sailor", "captain": "captain"}   # the rest are drawn by stick/auto_shots.js
     cast_js = [f"C(PAL_X('{c['col']}'), {{ hat: '{engine_hats.get(c['costume'], 'nohat')}', acc: '{c['costume'] if c['costume'] not in engine_hats else 'none'}', "
-               f"hatCol: '{['#d8312b', '#6c43c0', '#2f63c9', '#3fa35b'][i % 4]}', dotCol: '#fff' }})" for i, c in enumerate(sc["cast"])]
-    data = {"segs": [{k: s.get(k) for k in ("start", "dur", "setup", "mood", "who", "label", "tod", "ground", "hl", "words")} for s in tl["segs"]],
+               f"hatCol: '{['#d8312b', '#6c43c0', '#2f63c9', '#3fa35b'][i % 4]}', dotCol: '#fff', ghost: {'true' if c.get('ghost') else 'false'} }})" for i, c in enumerate(sc["cast"])]
+    data = {"segs": [{k: s.get(k) for k in ("start", "dur", "setup", "mood", "who", "label", "tod", "ground", "hl", "words", "speaker")} for s in tl["segs"]],
             "total": tl["total"], "style": {"accent": g.get("thumb_color", "#e0392f")}}
     open(os.path.join(web, "stick_data.js"), "w", encoding="utf-8").write(
         "window.STICK = " + json.dumps(data) + ";\nconst PAL_X = k => ({ cols: PAL[k] || PAL.red });\n"
         "const C0 = (a, b) => Object.assign({}, a, b);\n"
         f"window.STICK.cast = [{', '.join(x.replace('C(', 'C0(', 1) for x in cast_js)}];\n")
+    # captions: keep combining marks (\p{M}) so Hindi and other scripts render correctly
+    mj = os.path.join(web, "main.js"); js = open(mj, encoding="utf-8").read()
+    open(mj, "w", encoding="utf-8").write(js.replace("[^\\p{L}\\p{N}% ]", "[^\\p{L}\\p{M}\\p{N}% ]"))
     html = open(os.path.join(web, "index.html"), encoding="utf-8").read()
     html = html.replace('<script src="shots.js"></script>', '<script src="stick_data.js"></script><script src="shots.js"></script>')
     open(os.path.join(web, "index.html"), "w", encoding="utf-8").write(html)

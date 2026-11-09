@@ -158,6 +158,58 @@ const SET2 = {
 };
 Object.assign(SETUPS, SET2);
 
+
+// ---------- adventure / pirate set pieces (for screenplay scripts) ----------
+function rainFx(ctx, t, a = 1) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.strokeStyle = `rgba(200,215,255,${.45 * a})`; ctx.lineWidth = 3; ctx.beginPath();
+  for (let i = 0; i < 170; i++) { const x = (rnd(i) * 1300 + t * 160) % 1300 - 100, y = (rnd(i + 7) * 2100 + t * 1700) % 2100 - 100; ctx.moveTo(x, y); ctx.lineTo(x - 16, y + 52); } ctx.stroke();
+  if ((Math.floor(t * 3) % 5 == 0) && Math.sin(t * 40) > .3) { ctx.fillStyle = 'rgba(235,240,255,.55)'; ctx.fillRect(0, 0, W, H); } ctx.restore(); }
+function rnd(i) { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); }
+function palm(ctx, x, base, s, col = '#1f4a2a') { ctx.save(); ctx.translate(x, base); ctx.scale(s, s); ctx.beginPath(); ctx.moveTo(-10, 0); ctx.quadraticCurveTo(10, -180, 30, -360); ctx.lineTo(48, -360); ctx.quadraticCurveTo(30, -180, 14, 0); fillStroke(ctx, '#5a3b22', 4);
+  for (let k = 0; k < 6; k++) { const a = -Math.PI / 2 + (k - 2.5) * .55; ctx.beginPath(); ctx.moveTo(40, -360); ctx.quadraticCurveTo(40 + Math.cos(a) * 120, -360 + Math.sin(a) * 120 - 40, 40 + Math.cos(a) * 230, -330 + Math.sin(a) * 160); ctx.lineTo(40 + Math.cos(a) * 200, -320 + Math.sin(a) * 150); fillStroke(ctx, col, 4); } ctx.restore(); }
+function eyesGlow(ctx, x, y, t, col = '#ffe14d') { const open = (t * 1.3 % 3) > .2; if (!open) return; for (const dx of [-22, 22]) { ellipse(ctx, x + dx, y, 12, 8); ctx.fillStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 20; ctx.fill(); ctx.shadowBlur = 0; } }
+function skeleton(ctx, x, y, s, t, k) { const o = { x, y, s, sil: '#efe9dc', bob: Math.sin(t * 5 + k) * .01, arms: { L: [2.3 + Math.sin(t * 6 + k) * .3, .2], R: [.4, -.2] }, legs: { L: [.15, -.05], R: [.15, -.05] }, shadow: false };
+  drawStick(ctx, o); const hy = y - .765 * s, r = .19 * s; for (const dx of [-.07, .07]) { circle(ctx, x + dx * s, hy, r * .3); ctx.fillStyle = '#221c22'; ctx.fill(); }
+  path(ctx, [[x - r * .4, hy + r * .5], [x + r * .4, hy + r * .5], [x, hy + r * .25]]); ctx.fillStyle = '#221c22'; ctx.fill(); line(ctx, x + .1 * s, y - .6 * s, x + .25 * s, y - 1.1 * s, s * .015, '#8a7a60'); }
+const SET3 = {
+  storm(ctx, lt, t, s) { const sh = shake(t, 10, .8), cam = { x: 540 + sh[0], y: 960 + sh[1], z: 1.04, r: Math.sin(t * 1.3) * .05 }; applyCam(ctx, cam, .08); drawSky(ctx, '#151a2e', '#3b4462');
+    applyCam(ctx, cam, .2); drawCloud(ctx, 200 + t * 30, 260, 160, 1, .6); drawCloud(ctx, 800 + t * 40, 200, 140, 2, .5); applyCam(ctx, cam, .45); drawSea(ctx, 900, t * 2.2, 2600, ['#2f5a7a', '#173a56', '#0c2438']);
+    applyCam(ctx, cam, 1); ctx.save(); ctx.translate(540, 1080); ctx.rotate(Math.sin(t * 1.6) * .12); drawShip(ctx, 0, 0, 1.1, t, { flag: '#1b1820', hull: '#4a2e22' }); ctx.restore();
+    stickA(ctx, C(cast(s.who), { x: 520, y: 950, s: 170, lean: Math.sin(t * 1.6) * .2, face: face(s.mood || 'scared', talkingAt(s, t), t) })); rainFx(ctx, t); darkness(ctx, .15, '#05081a'); },
+  treasuremap(ctx, lt, t, s) { const cam = { x: 540, y: 960, z: 1.0 + lt * .08 }; applyCam(ctx, cam, .5); ctx.fillStyle = '#5a3a22'; ctx.fillRect(-600, -600, 2400, 3200);
+    applyCam(ctx, cam, 1); const un = easeOut(clamp(lt / .7)); ctx.save(); ctx.translate(540, 980); ctx.scale(.3 + .7 * un, 1); rrect(ctx, -420, -560, 840, 1120, 30); fillStroke(ctx, '#e8d3a0', 8); ctx.restore();
+    if (un > .9) { ctx.save(); ctx.strokeStyle = 'rgba(90,60,30,.7)'; ctx.lineWidth = 6; ctx.setLineDash([22, 18]); ctx.beginPath(); ctx.moveTo(260, 1360); ctx.quadraticCurveTo(420, 1100, 520, 1180); ctx.quadraticCurveTo(650, 1260, 700, 860); ctx.stroke(); ctx.restore();
+      hills(ctx, 760, 'rgba(120,90,50,.35)', 4, 60); path(ctx, [[220, 640], [330, 520], [440, 640]]); fillStroke(ctx, 'rgba(110,80,40,.5)', 5);
+      const g = .6 + .4 * Math.sin(t * 6); ctx.save(); ctx.shadowColor = '#ff3b30'; ctx.shadowBlur = 40 * g; line(ctx, 650, 810, 750, 910, 20, '#d8312b'); line(ctx, 750, 810, 650, 910, 20, '#d8312b'); ctx.restore(); }
+    text(ctx, (s.label && s.label != 'X' ? s.label : 'TREASURE').toUpperCase().slice(0, 14), 540, 500, 70, '#5a3a22', null, 0, 'Lora', 700); },
+  jungle(ctx, lt, t, s) { const hh = handheld(t, 3), cam = { x: 540 + hh[0] + lt * 20, y: 960 + hh[1], z: 1.03 }; applyCam(ctx, cam, .1); drawSky(ctx, '#20304a', '#5a6a5a');
+    applyCam(ctx, cam, .3); for (let i = 0; i < 6; i++) palm(ctx, i * 230 - 60, 1250, .9, '#1d3a2a'); applyCam(ctx, cam, 1); rrect(ctx, -700, 1300, 2500, 1400, 0); fillStroke(ctx, '#1f3a22', 6);
+    eyesGlow(ctx, 860, 980, t); eyesGlow(ctx, 190, 1060, t + 1.3, '#ff5a3a');
+    stickA(ctx, C(cast(s.who), { x: 420 + lt * 20, y: 1440, s: 500, legs: walkLegs(t, 7, .4), arms: walkArms(t, 7, .4), face: face(s.mood || 'scared', talkingAt(s, t), t) }));
+    stickA(ctx, C(cast(s.who + 1), { x: 680 + lt * 20, y: 1460, s: 460, flip: -1, legs: walkLegs(t + .5, 7, .4), face: face('scared', false, t, 1) }));
+    applyCam(ctx, cam, 1.4); for (let i = 0; i < 4; i++) palm(ctx, i * 420 - 150, 2050, 1.6, '#0c1f12'); darkness(ctx, .25, '#06120a'); },
+  skeletons(ctx, lt, t, s) { const sh = shake(t, 5 * Math.max(0, 1 - lt), 2), cam = { x: 540 + sh[0], y: 960 + sh[1], z: 1.03 + lt * .03 };
+    bg(ctx, t, cam, Object.assign({}, s, { tod: 'night' })); applyCam(ctx, cam, 1); darkness(ctx, .35, '#0a0c20'); applyCam(ctx, cam, 1);
+    const rise = easeOut(clamp(lt / .8)); [[650, 1450, 420], [880, 1430, 380], [420, 1470, 360]].forEach(([x, y, z], k) => { ctx.save(); ctx.beginPath(); ctx.rect(-600, -600, 2400, y + 600 - 4); ctx.clip(); skeleton(ctx, x, y + (1 - rise) * z * 1.2, z, t, k); ctx.restore(); });
+    stickA(ctx, C(cast(s.who), { x: 200, y: 1480, s: 480, face: face(s.mood || 'shocked', talkingAt(s, t), t), arms: { L: [.3, -.1], R: [1.4, -.5] } })); },
+  temple(ctx, lt, t, s) { const cam = { x: 540, y: 960, z: 1.02 + lt * .04 }; applyCam(ctx, cam, .1); drawSky(ctx, '#2a2240', '#6a5070');
+    applyCam(ctx, cam, 1); rrect(ctx, 140, 380, 800, 1000, 10); fillStroke(ctx, '#7a7468', 8); for (let y = 420; y < 1360; y += 110) line(ctx, 150, y, 930, y, 4, '#5f5a50');
+    const open = easeOut(clamp((lt - .4) / 1.2)); ctx.save(); const gl = ctx.createRadialGradient(540, 980, 20, 540, 980, 420); gl.addColorStop(0, `rgba(120,180,255,${.8 * open})`); gl.addColorStop(1, 'rgba(120,180,255,0)'); ctx.fillStyle = gl; ctx.fillRect(140, 380, 800, 1000); ctx.restore();
+    for (const side of [-1, 1]) { rrect(ctx, 540 + (side > 0 ? 0 : -250) + side * open * 200, 640, 250, 740, 6); fillStroke(ctx, '#5e594f', 6); }
+    circle(ctx, 540, 520, 70); fillStroke(ctx, '#e9e2d0', 6); for (const dx of [-24, 24]) { circle(ctx, 540 + dx, 510, 16); ctx.fillStyle = '#221c22'; ctx.fill(); }
+    rrect(ctx, -600, 1380, 2400, 1200, 0); fillStroke(ctx, '#4a4038', 6); if (lt < 1.6) puff(ctx, 540, 1380, 120 * open, t, '#cfc6b4', 3, .6);
+    stickA(ctx, C(cast(s.who), { x: 300, y: 1500, s: 420, face: face(s.mood || 'shocked', talkingAt(s, t), t), arms: { L: [.3, -.1], R: [1.5, -.3] } })); },
+  ghost(ctx, lt, t, s) { const cam = { x: 540 + Math.sin(t * .8) * 8, y: 960, z: 1.03 + lt * .03 }; applyCam(ctx, cam, .2); drawSky(ctx, '#071510', '#163828');
+    applyCam(ctx, cam, 1); rrect(ctx, -600, 1380, 2400, 1200, 0); fillStroke(ctx, '#0f2218', 6); drawChest(ctx, 540, 1430, 1.1, .6);
+    const g = cast.ghostIdx != null ? CAST[cast.ghostIdx] : null; const gy = 1180 - easeOut(clamp(lt / 1)) * 160 + Math.sin(t * 2) * 14;
+    ctx.save(); ctx.globalAlpha = .62; ctx.shadowColor = '#5dff9a'; ctx.shadowBlur = 60; stickA(ctx, C(g || cast(1), { x: 540, y: gy, s: 620, sil: '#8dffc0', shadow: false, arms: { L: [2.2, .4], R: [1.2, -.3] } })); ctx.restore();
+    if (s.speaker && /ghost/i.test(s.speaker)) eyesGlow(ctx, 540, gy - .765 * 620, t, '#ff3b30');
+    for (let i = 0; i < 12; i++) puff(ctx, 300 + i * 50, 1400 - (t * 60 + i * 37) % 300, 40, t, '#2f8a55', i, .25);
+    const hero = cast.ghostIdx != null && s.who == cast.ghostIdx ? 0 : s.who; stickA(ctx, C(cast(hero), { x: 200, y: 1500, s: 400, face: face(s.speaker && /ghost/i.test(s.speaker) ? 'scared' : (s.mood || 'shocked'), talkingAt(s, t) && !/ghost/i.test(s.speaker || ''), t), arms: POSE.handsUp.arms })); },
+};
+Object.assign(SETUPS, SET3);
+cast.ghostIdx = CAST.findIndex(c => c.ghost);
+if (cast.ghostIdx < 0) cast.ghostIdx = null;
+
 const SHOTS = [];
 D.segs.forEach((s, i) => { const start = i == 0 ? 0 : s.start, end = i + 1 < D.segs.length ? D.segs[i + 1].start : D.total;
   const fn = SETUPS[s.setup] || SETUPS.talk; s.who = s.who || 0;

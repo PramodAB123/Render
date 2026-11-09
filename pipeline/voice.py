@@ -25,14 +25,16 @@ async def _edge_stream(text, out, voice, rate, pitch):
 
 
 def _edge(text, out, voice, rate, pitch):
-    for attempt in range(6):  # the free Edge voice service drops connections now and then
-        v = voice if attempt < 4 else SAFE_VOICE  # last tries: a voice that always exists
+    v = voice
+    for attempt in range(9):  # the free Edge voice service drops connections now and then: keep retrying, waiting longer
         try:
             return asyncio.run(_edge_stream(text, out, v, rate, pitch))
         except Exception as e:
-            if attempt == 5:
+            if attempt == 8:
                 raise
-            print(f"  edge-tts retry {attempt + 1} ({type(e).__name__})"); time.sleep(min(2 ** attempt, 10))
+            if "NoAudio" in type(e).__name__ and attempt >= 2:   # the voice itself is not available: use one that always exists
+                v = SAFE_VOICE
+            print(f"  edge-tts retry {attempt + 1} ({type(e).__name__})"); time.sleep(min(2 ** attempt, 30))
 
 
 _kokoro = None
