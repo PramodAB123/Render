@@ -7,7 +7,9 @@ import requests
 from common import load_config, ROOT, FFMPEG
 
 ENGINE = ROOT / "vendor" / "animation-skills" / "skills" / "stick-figure" / "engine"
-SETUPS = ["closeup", "talk", "walk", "run", "crowd", "object", "reveal", "night", "impact", "sea", "bigtext", "think"]
+SETUPS = ["closeup", "talk", "walk", "run", "crowd", "object", "reveal", "night", "impact", "sea", "bigtext", "think",
+          "kingdoms", "armies", "forge", "throne", "blueprint", "bridge", "messenger"]
+COSTUMES = ["none", "crown", "helmet", "hood", "wizard", "cap", "bandana", "sailor", "captain"]
 MOODS = ["calm", "happy", "scared", "shocked", "angry", "sad", "smug", "dizzy", "think"]
 COLS = ["red", "blue", "yellow", "green", "navy", "purple"]
 # explainer genres follow the stick-figure skill; story genres follow a hook -> escalation -> twist -> cliffhanger arc
@@ -15,25 +17,35 @@ EXPLAIN = ("a hook that starts in action, the common belief, a turn on \"But\", 
            "and a payoff that answers the hook.")
 STORY = ("a hook already in motion, who and where in one line, three escalations that each make things worse with a concrete detail, "
          "a twist two thirds in that changes everything, and a cliffhanger ending.")
-STRUCTURE = {"science": EXPLAIN, "comedy": EXPLAIN, "motivation": EXPLAIN, "story": STORY}
+# the reference Short ("An Unstoppable Spear vs an Unbreakable Shield"): a paradox or what-if told as a fable
+FABLE = ("open on the paradox or what-if as a question, set up two sides or rivals and what each one claims, someone tests it "
+         "with a concrete plan, the stakes escalate (armies, a king, a deadline), a clever twist resolves it in a way nobody expected, "
+         "and a final punchline line.")
+STRUCTURE = {"science": EXPLAIN, "motivation": EXPLAIN, "comedy": FABLE, "history": FABLE, "mystery": FABLE, "horror": STORY, "story": FABLE}
 
 PROMPT = """You write a {seconds}-second vertical stick-figure cartoon video. Genre: {genre}. Style: {tone}
 Make ONE completely original story or explainer (never copy existing videos). Idea: {idea}
 {inspo}
 Structure: {structure} One idea per line, 6-14 words.
+Narrated like a storyteller: calm, clear, a little wry, short sentences; characters may say a line themselves ("speaker").
 For every line choose a "setup" (what we see): closeup (big face reacting), talk (two characters), walk, run, crowd,
 object (a crate labelled with "label"), reveal (a chest opens; "label" pops out), night (dark, lantern, scared),
-impact (comic burst with "label" like BOOM), sea (ship on the sea), bigtext ("label" in huge letters), think (question marks).
+impact (comic burst with "label" like BOOM), sea (ship on the sea), bigtext ("label" in huge letters), think (question marks),
+kingdoms (two castles and armies at dusk), armies (two armies charging, seen from above), forge (blacksmith at the fire),
+throne (a king in the throne room), blueprint (a plan drawn on blue paper; "label" = its title, "hl" = a stamp word),
+bridge (two characters meet on a stone bridge), messenger (someone running with a scroll).
 Change the setup every line. "mood" is one of: {moods}. "time_of_day": day, dusk, night or dawn.
 "ground": grass, sand, snow, road, floor or sea.
 Reply with JSON only:
 {{"title": "under 60 chars", "description": "2 sentences", "tags": ["5-8 tags"], "thumb_text": "2-4 WORDS",
-  "characters": [{{"name": "...", "color": "red|blue|yellow|green|navy|purple", "hat": "bandana|sailor|captain|none"}}],
-  "lines": [{{"say": "...", "setup": "closeup", "mood": "calm", "who": 0, "label": "", "time_of_day": "day", "ground": "grass", "hl": "KEYWORD"}}]}}
+  "characters": [{{"name": "...", "role": "e.g. blacksmith, king, messenger", "gender": "male|female", "color": "red|blue|yellow|green|navy|purple",
+                    "costume": "none|crown|helmet|hood|wizard|cap|bandana|sailor|captain"}}],
+  "lines": [{{"say": "...", "speaker": "narrator or a character name", "setup": "closeup", "mood": "calm", "who": 0, "label": "",
+              "time_of_day": "day", "ground": "grass", "hl": "KEYWORD"}}]}}
 "who" is the index of the character on screen. Write about {lines} lines. The last line ends with: "{cta}" """
 
 MORE = """Continue this {genre} stick-figure video with about {lines} more lines in the same JSON line format
-(say, setup, mood, who, label, time_of_day, ground, hl), building toward the payoff. Last lines so far: {last}
+(say, speaker, setup, mood, who, label, time_of_day, ground, hl), building toward the payoff. Last lines so far: {last}
 Reply with JSON only: {{"lines": [...]}}"""
 
 
@@ -88,18 +100,20 @@ def write_story(g, idea, inspo, secs):
             who = int(l.get("who") or 0) % len(chars)
         except (TypeError, ValueError):
             who = 0
-        lines.append({"say": str(l["say"]).strip(), "setup": setup, "mood": _pick(l.get("mood"), MOODS, "calm"), "who": who,
+        lines.append({"say": str(l["say"]).strip(), "speaker": str(l.get("speaker") or "narrator"), "setup": setup,
+                      "mood": _pick(l.get("mood"), MOODS, "calm"), "who": who,
                       "label": str(l.get("label") or "")[:16], "tod": _pick(l.get("time_of_day"), ["day", "dusk", "night", "dawn"], "day"),
                       "ground": _pick(l.get("ground"), ["grass", "sand", "snow", "road", "floor", "sea"], "grass"),
                       "hl": str(l.get("hl") or "").upper()[:16]})
     if g["cta"].lower().rstrip(".") not in lines[-1]["say"].lower():
         lines.append({"say": g["cta"], "setup": "bigtext", "mood": "happy", "who": 0, "label": g["cta"].split()[0], "tod": "day", "ground": "grass", "hl": ""})
     # genre conditions: dark genres stay at night/dusk, with scared moods and the lantern scene, whatever the LLM picked
-    dark = {"horror": ("night", "dusk"), "mystery": ("night", "dusk", "dawn")}.get(g["name"])
+    # history keeps the warm storybook light of the reference Short (dusk, dawn, a little day)
+    dark = {"horror": ("night", "dusk"), "mystery": ("night", "dusk", "dawn"), "history": ("dusk", "dawn", "day")}.get(g["name"])
     if dark:
         for k, ln in enumerate(lines):
             if ln["tod"] not in dark:
-                ln["tod"] = dark[k % len(dark)] if g["name"] == "mystery" else "night"
+                ln["tod"] = dark[k % len(dark)] if g["name"] != "horror" else "night"
             if g["name"] == "horror" and ln["mood"] in ("calm", "happy") and ln["setup"] != "bigtext":
                 ln["mood"] = "scared" if k % 2 else "shocked"
             if g["name"] == "horror" and ln["setup"] in ("sea", "crowd") and k % 2:
@@ -107,8 +121,29 @@ def write_story(g, idea, inspo, secs):
     lines[0]["setup"] = "closeup" if lines[0]["setup"] not in ("closeup", "impact", "run") else lines[0]["setup"]
     cast = []
     for i, c in enumerate(chars):
-        col = _pick(c.get("color"), COLS, COLS[i % len(COLS)]); hat = _pick(c.get("hat"), ["bandana", "sailor", "captain", "none"], "bandana")
-        cast.append({"name": str(c.get("name") or f"Hero{i}"), "col": col, "hat": hat})
+        col = _pick(c.get("color"), COLS, COLS[i % len(COLS)])
+        costume = _pick(c.get("costume") or c.get("hat"), COSTUMES, "none")
+        role = str(c.get("role") or "").lower()
+        if costume == "none":   # dress characters for their role (king -> crown, soldier -> helmet ...)
+            costume = next((v for k, v in (("king", "crown"), ("queen", "crown"), ("soldier", "helmet"), ("knight", "helmet"), ("guard", "helmet"),
+                                           ("wizard", "wizard"), ("monk", "hood"), ("thief", "hood"), ("smith", "cap"), ("pirate", "bandana"),
+                                           ("sailor", "sailor"), ("captain", "captain")) if k in role), "none")
+        cast.append({"name": str(c.get("name") or f"Hero{i}"), "col": col, "costume": costume,
+                     "gender": _pick(c.get("gender"), ["male", "female"], "male")})
+    # voices: storyteller narrator (genre voice, a touch slower); each character speaks with its own free Edge voice and mood
+    from toon import VOICES, MOOD
+    used = {g.get("voice", {}).get("edge_voice")}; vmap = {}
+    for c in cast:
+        opts = [v for v in VOICES[(c["gender"], "adult")] if v not in used] or VOICES[(c["gender"], "adult")]
+        vmap[c["name"].lower()] = opts[0]; used.add(opts[0])
+    for ln in lines:
+        ln.setdefault("speaker", "narrator")
+        v = vmap.get(ln["speaker"].lower())
+        if v:
+            ln["voice"], (ln["rate"], ln["pitch"]) = v, MOOD.get(ln["mood"], MOOD["calm"])
+            ln["who"] = next((k for k, c in enumerate(cast) if c["name"].lower() == ln["speaker"].lower()), ln["who"])
+        else:
+            ln["rate"] = {"scared": "+4%", "shocked": "+2%", "sad": "-8%"}.get(ln["mood"], "-4%")
     print(f"  stick story: {story.get('title')!r}, {len(lines)} lines, cast: {', '.join(c['name'] for c in cast)}")
     return {"title": str(story.get("title") or idea)[:70], "description": str(story.get("description") or idea),
             "tags": [str(t) for t in story.get("tags", [])][:10], "thumb_text": str(story.get("thumb_text") or "WHAT IF")[:24],
@@ -129,8 +164,9 @@ def render(sc, tl, d, g, size=(1080, 1920)):
             words.append({"w": w["w"], "s": w["s"], "e": w["e"], "line": k})
     open(os.path.join(web, "words.js"), "w", encoding="utf-8").write("const WORDS=" + json.dumps(words) + ";\n")
     open(os.path.join(web, "warp.js"), "w", encoding="utf-8").write("window.WARP = null;\n")
-    hats = {"bandana": "bandana", "sailor": "sailor", "captain": "captain", "none": "nohat"}
-    cast_js = [f"C(PAL_X('{c['col']}'), {{ hat: '{hats[c['hat']]}', hatCol: '{['#d8312b', '#6c43c0', '#2f63c9', '#3fa35b'][i % 4]}', dotCol: '#fff' }})" for i, c in enumerate(sc["cast"])]
+    engine_hats = {"bandana": "bandana", "sailor": "sailor", "captain": "captain"}   # the rest are drawn by stick/auto_shots.js
+    cast_js = [f"C(PAL_X('{c['col']}'), {{ hat: '{engine_hats.get(c['costume'], 'nohat')}', acc: '{c['costume'] if c['costume'] not in engine_hats else 'none'}', "
+               f"hatCol: '{['#d8312b', '#6c43c0', '#2f63c9', '#3fa35b'][i % 4]}', dotCol: '#fff' }})" for i, c in enumerate(sc["cast"])]
     data = {"segs": [{k: s.get(k) for k in ("start", "dur", "setup", "mood", "who", "label", "tod", "ground", "hl", "words")} for s in tl["segs"]],
             "total": tl["total"], "style": {"accent": g.get("thumb_color", "#e0392f")}}
     open(os.path.join(web, "stick_data.js"), "w", encoding="utf-8").write(

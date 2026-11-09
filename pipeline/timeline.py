@@ -98,7 +98,7 @@ def _doc_sound(d, tl):
     sf.write(p, np.clip(fx + drone, -1, 1), SR)
 
 
-def music_and_mix(d, out_mp4, g, doc=False):
+def music_and_mix(d, out_mp4, g, doc=False, scenes=False):
     """Synth genre music bed + SFX (code-cinema), or a free track from music/<genre>/, then duck under the voice + mix."""
     tl = json.load(open(os.path.join(d, "timeline.json")))
     py(CINEMA / "tools" / "sfx.py", d)
@@ -119,9 +119,11 @@ def music_and_mix(d, out_mp4, g, doc=False):
         print(f"  music: synthesized {g['name']} bed (add free tracks to music/{g['name']}/ to use your own)")
     if doc:
         _doc_sound(d, tl)
+    if scenes:   # per-scene ambience and hits (stick / 2d)
+        import scene_sfx; scene_sfx.add(d, tl)
     _voice_track(d, tl)
     f = (f"[1]aformat=channel_layouts=stereo,asplit[voice][key];"
-         f"[2]aformat=channel_layouts=stereo,volume=0.9[mus];[mus][key]sidechaincompress=threshold=0.03:ratio=6:attack=20:release=300[duck];"
+         f"[2]aformat=channel_layouts=stereo,volume={0.55 if scenes else 0.9}[mus];[mus][key]sidechaincompress=threshold=0.03:ratio=6:attack=20:release=300[duck];"
          f"[3]aformat=channel_layouts=stereo[fx];[voice][duck][fx]amix=inputs=3:normalize=0,alimiter=limit=0.95,atrim=0:{tl['total']}[a]")
     subprocess.run([FFMPEG, "-v", "error", "-y", "-i", os.path.join(d, "video.mp4"), "-i", os.path.join(d, "voice.wav"),
                     "-i", os.path.join(d, "music.wav"), "-i", os.path.join(d, "sfx.wav"), "-filter_complex", f,

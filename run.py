@@ -127,7 +127,7 @@ def main():
         sys.exit(f"The {a.mode} renderer did not produce a video. Nothing was uploaded.")
     tl = json.load(open(os.path.join(d, "timeline.json")))
     out = OUTPUT / name; out.mkdir(parents=True, exist_ok=True); final = str(out / "final.mp4")
-    step("5/7 music + mix"); timeline.music_and_mix(d, final, g, doc=a.mode == "doc")
+    step("5/7 music + mix"); timeline.music_and_mix(d, final, g, doc=a.mode == "doc", scenes=a.mode in ("stick", "2d"))
     step("6/7 thumbnail"); thumb = thumbnail.make(final, sc.get("thumb_text") or sc["title"], str(out / "thumbnail.jpg"),
                                                   total=tl["total"], color=g.get("thumb_color", "#ffe34a"))
     thumbnail.sheet(final, str(out / "sheet.jpg"), tl["total"])   # quick-review contact sheet with the safe area marked
