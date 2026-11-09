@@ -20,9 +20,36 @@ def _field(chunk, name):
     return re.sub(r"\s+", " ", m.group(1)).strip() if m else ""
 
 
+BLOCK = r"(?:Visual|Animation|SFX|Sound|Music|Camera)"
+STOP = r"(?=(?:Narrator|Narration|Dialogue|Visual|Animation|SFX|Sound|Music|Camera)\s*[:–—-]|\n\s*[A-Z][\w .'-]{0,25}(?:\([^)]*\))?\s*:\s*\"|$)"
+JUNK = re.compile(r"^\s*(?:\S+\.(?:net|com|inc|live|media|tv|io|org|ai|co|app|gg|me|in)\S*|\d{1,3})\s*$", re.I)
+
+
+def _beats(chunk, name):
+    """A field's steps: '- bullet' lines (sub-bullets join their parent) or sentences."""
+    m = re.search(r"\b" + name + r"\s*:\s*(.*?)" + STOP, chunk, re.S | re.I)
+    if not m:
+        return []
+    raw = m.group(1); out = []
+    if re.search(r"^\s*[-•*]\s+", raw, re.M):
+        for ln in raw.split("\n"):
+            b = re.match(r"^(\s*)[-•*]\s+(.*)", ln)
+            if b and len(b.group(1)) >= 2 and out:
+                out[-1] += " " + b.group(2).strip()          # nested bullet -> part of the step above
+            elif b:
+                out.append(b.group(2).strip())
+            elif ln.strip() and out:
+                out[-1] += " " + ln.strip()
+    else:
+        out = [x.strip() for x in re.split(r"(?<=[.!?])\s+", re.sub(r"\s+", " ", raw)) if x.strip()]
+    return [re.sub(r"\s+", " ", x) for x in out if x]
+
+
 def parse(text):
-    """-> list of scenes {title, visual, sfx, speech:[{speaker, say, tone}]} and a flat list of spoken lines."""
-    t = str(text).replace("“", '"').replace("”", '"').replace("„", '"').replace("’", "'")
+    """-> list of scenes {title, visual, beats, camera, sfx, music, speech:[{speaker, say, tone}]} and a flat list of spoken lines.
+    Only Narrator / Dialogue lines are spoken; quotes inside Visual / Camera / Music / SFX steps (screen text, signs) are not."""
+    t = str(text).replace("“", '"').replace("”", '"').replace("„", '"').replace("’", "'").replace("&#34;", '"').replace("&#39;", "'").replace("&quot;", '"')
+    t = "\n".join(ln for ln in t.split("\n") if not JUNK.match(ln))                  # pasted website names, stray numbers
     t = re.sub(r"\(\d{1,2}:\d{2}\s*[–—-]\s*\d{1,2}:\d{2}\)", " ", t)            # drop (00:00–00:10) timestamps
     t = re.sub(r"ACT\s+\d+\s*[–—-][^\n]*?(?=Scene\s+\d+)", " ", t, flags=re.I)  # drop ACT headings
     t = re.sub(r"ENDING TEXT:.*$", " ", t, flags=re.I | re.S)
@@ -32,22 +59,24 @@ def parse(text):
         chunk = chunk.strip()
         if not chunk:
             continue
-        hm = re.match(r"Scene\s+\d+\s*[–—-]\s*(.*?)(?=Visual:|Animation:|SFX:|Narrator:|Dialogue|$)", chunk, re.S | re.I)
+        hm = re.match(r"Scene\s+\d+\s*[–—-]\s*(.*?)(?=\n|Visual:|Animation:|SFX:|Narrator:|Dialogue|$)", chunk, re.S | re.I)
         title = re.sub(r"\s+", " ", hm.group(1)).strip(" :") if hm else ""
         rest = chunk[hm.end():] if hm else chunk   # the heading is not part of anyone's name
-        visual = " ".join(x for x in (_field(rest, "Visual"), _field(rest, "Animation")) if x)
+        beats = _beats(rest, "Visual") + _beats(rest, "Animation")
+        visual = " ".join(beats)
+        camera = _beats(rest, "Camera")
         sfx = _field(rest, "SFX") or _field(rest, "Sound"); music = _field(rest, "Music")
         speech = []
-        body = re.sub(r"(Visual|Animation|SFX|Sound|Camera)\s*:\s*[^\"]*?(?=(Narrator|Narration|Dialogue)\b|[A-Z][\w ]{0,25}(?:\([^)]*\))?\s*:\s*\"|$)", " ", rest, flags=re.I)
+        body = re.sub(r"\b" + BLOCK + r"\s*:.*?" + STOP, " ", rest, flags=re.S | re.I)   # drop the non-spoken blocks entirely
         body = re.sub(r"Dialogue\s*[–—-]\s*", "", body, flags=re.I)
         for m in QUOTE.finditer(body):
             sp = re.sub(r"\s+", " ", m.group(1)).strip(); line = re.sub(r"\s+", " ", m.group(3)).strip()
             sp = " ".join(sp.split()[-2:]) if len(sp.split()) > 2 else sp   # e.g. 'Ghost Captain'
-            if sp.lower() in ("visual", "animation", "sfx", "sound", "camera"):
+            if sp.lower() in ("visual", "animation", "sfx", "sound", "camera", "music"):
                 continue
             speech.append({"speaker": "narrator" if sp.lower() in ("narrator", "narration") else sp, "say": line, "tone": (m.group(2) or "").lower()})
         if speech or visual:
-            scenes.append({"title": title, "visual": visual, "sfx": sfx, "music": music, "speech": speech})
+            scenes.append({"title": title, "visual": visual, "beats": beats, "camera": camera, "sfx": sfx, "music": music, "speech": speech})
     lines = [dict(s, scene=k) for k, sc in enumerate(scenes) for s in sc["speech"]]
     return scenes, lines
 

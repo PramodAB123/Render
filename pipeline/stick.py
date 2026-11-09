@@ -220,7 +220,7 @@ def from_screenplay(g, text):
         mood = sp.mood(l, setup)
         lines.append({"say": l["say"], "speaker": l["speaker"], "setup": setup, "mood": mood, "who": who, "label": sp.LABEL.get(setup, ""),
                       "tod": tod, "ground": "sea" if setup in ("sea", "storm") else "floor" if setup in ("temple", "throne", "forge") else "grass",
-                      "hl": "", "sfx": sp.sfx_tags(sc["sfx"]) if first else [], "scene_visual": sc["visual"], "scene_title": sc["title"], "image": prompts[l["scene"]], "scene": l["scene"],
+                      "hl": "", "sfx": sp.sfx_tags(sc["sfx"]) if first else [], "scene_visual": sc["visual"], "beats": sc.get("beats", []), "camera": sc.get("camera", []), "scene_title": sc["title"], "image": prompts[l["scene"]], "scene": l["scene"],
                       "fx": sp.fx_tags(sc["visual"]), "music": sp.music_feel(sc)})
     # voices: Hindi scripts get the free Hindi Edge voices; each character a different pitch/speed so they sound distinct
     from toon import VOICES, MOOD
