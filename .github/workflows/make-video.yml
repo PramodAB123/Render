@@ -29,6 +29,9 @@ on:
         default: "stock"
         type: choice
         options: [stock, ai, mix, doc, 2d, stick, cinema]
+      reference:
+        description: "Optional reference link (YouTube video or any web page) - the new video borrows its topic and tone, not its content"
+        required: false
       idea:
         description: "Optional idea (leave empty to use trending YouTube ideas)"
         required: false
@@ -142,6 +145,7 @@ jobs:
           ORIENTATION: ${{ inputs.orientation || 'portrait' }}
           GENRE: ${{ inputs.genre || 'rotate' }}   # daily runs rotate through all genres
           IDEA: ${{ inputs.idea }}
+          REFERENCE: ${{ inputs.reference }}
           WANT_UPLOAD: ${{ github.event_name == 'schedule' || inputs.upload }}
         run: |
           echo "branch: ${GITHUB_REF_NAME}  commit: ${GITHUB_SHA::7}  mode: $MODE  genre: $GENRE"
@@ -149,6 +153,7 @@ jobs:
             echo "stick mode needs the claude-animation-skills checkout, which is missing"; exit 1; fi
           ARGS=(--genre "$GENRE" --mode "$MODE" --length "$LENGTH" --orientation "$ORIENTATION")
           if [ -n "$IDEA" ]; then ARGS+=(--idea "$IDEA"); fi
+          if [ -n "$REFERENCE" ]; then ARGS+=(--reference "$REFERENCE"); fi
           if [ "$WANT_UPLOAD" = "true" ]; then
             if [ -n "$YT_REFRESH_TOKEN" ]; then ARGS+=(--upload); else echo "No YT_REFRESH_TOKEN secret yet - skipping upload"; fi
           fi
