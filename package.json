@@ -20,7 +20,7 @@
   "homepage": "https://github.com/PramodAB123/Render#readme",
   "dependencies": {
     "gsap": "^3.15.1",
-    "hyperframes": "^0.9.26",
+    "hyperframes": "0.9.26",
     "playwright": "^1.65.0"
   }
 }
