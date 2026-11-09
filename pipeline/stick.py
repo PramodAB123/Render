@@ -88,6 +88,16 @@ def write_story(g, idea, inspo, secs):
                       "hl": str(l.get("hl") or "").upper()[:16]})
     if g["cta"].lower().rstrip(".") not in lines[-1]["say"].lower():
         lines.append({"say": g["cta"], "setup": "bigtext", "mood": "happy", "who": 0, "label": g["cta"].split()[0], "tod": "day", "ground": "grass", "hl": ""})
+    # genre conditions: dark genres stay at night/dusk, with scared moods and the lantern scene, whatever the LLM picked
+    dark = {"horror": ("night", "dusk"), "mystery": ("night", "dusk", "dawn")}.get(g["name"])
+    if dark:
+        for k, ln in enumerate(lines):
+            if ln["tod"] not in dark:
+                ln["tod"] = dark[k % len(dark)] if g["name"] == "mystery" else "night"
+            if g["name"] == "horror" and ln["mood"] in ("calm", "happy") and ln["setup"] != "bigtext":
+                ln["mood"] = "scared" if k % 2 else "shocked"
+            if g["name"] == "horror" and ln["setup"] in ("sea", "crowd") and k % 2:
+                ln["setup"] = "night"
     lines[0]["setup"] = "closeup" if lines[0]["setup"] not in ("closeup", "impact", "run") else lines[0]["setup"]
     cast = []
     for i, c in enumerate(chars):

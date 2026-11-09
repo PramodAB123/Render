@@ -1,6 +1,8 @@
 # Runs the whole pipeline on GitHub's free cloud runners (nothing runs on your PC).
 # Daily at 13:30 UTC (7 PM India), or on demand: Actions tab > "Make video" > Run workflow.
 name: Make video
+# The run list shows mode, genre and branch, so you can see at a glance what each run made.
+run-name: "${{ inputs.mode || 'stock' }} · ${{ inputs.genre || 'daily rotate' }} · ${{ inputs.length || '30 sec' }} · ${{ inputs.orientation || 'portrait' }} · ${{ github.ref_name }}"
 
 on:
   schedule:
@@ -142,6 +144,9 @@ jobs:
           IDEA: ${{ inputs.idea }}
           WANT_UPLOAD: ${{ github.event_name == 'schedule' || inputs.upload }}
         run: |
+          echo "branch: ${GITHUB_REF_NAME}  commit: ${GITHUB_SHA::7}  mode: $MODE  genre: $GENRE"
+          if [ "$MODE" = "stick" ] && [ ! -f vendor/animation-skills/skills/stick-figure/engine/template/web/chars.js ]; then
+            echo "stick mode needs the claude-animation-skills checkout, which is missing"; exit 1; fi
           ARGS=(--genre "$GENRE" --mode "$MODE" --length "$LENGTH" --orientation "$ORIENTATION")
           if [ -n "$IDEA" ]; then ARGS+=(--idea "$IDEA"); fi
           if [ "$WANT_UPLOAD" = "true" ]; then
