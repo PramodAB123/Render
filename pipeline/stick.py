@@ -22,7 +22,7 @@ STORY = ("a hook already in motion, who and where in one line, three escalations
 FABLE = ("open on the paradox or what-if as a question, set up two sides or rivals and what each one claims, someone tests it "
          "with a concrete plan, the stakes escalate (armies, a king, a deadline), a clever twist resolves it in a way nobody expected, "
          "and a final punchline line.")
-STRUCTURE = {"science": EXPLAIN, "motivation": EXPLAIN, "comedy": FABLE, "history": FABLE, "mystery": FABLE, "horror": STORY, "story": FABLE}
+STRUCTURE = {"science": EXPLAIN, "motivation": EXPLAIN, "comedy": FABLE, "history": FABLE, "mystery": FABLE, "horror": STORY, "adventure": STORY, "story": FABLE}
 
 PROMPT = """You write a {seconds}-second vertical stick-figure cartoon video. Genre: {genre}. Style: {tone}
 Make ONE completely original story or explainer (never copy existing videos). Idea: {idea}
