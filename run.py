@@ -13,7 +13,7 @@ There is no fallback between modes: an unknown mode, or a renderer that fails, s
 import argparse, json, os, re, sys, time
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "pipeline"))
 from common import load_config, genre_cfg, slug, WORK, OUTPUT  # noqa: E402
-import ideas, scriptgen, voice, timeline, stock, cinema, thumbnail, toon, stick, reference  # noqa: E402
+import ideas, scriptgen, voice, timeline, stock, cinema, thumbnail, toon, stick, reference, storycraft  # noqa: E402
 
 
 # ---------------------------------------------------------------- script writers
@@ -105,7 +105,15 @@ def main():
     else:
         idea, inspo = (a.idea, []) if a.idea else ideas.pick_idea(g)
     step(f"2/7 script ({write_script.__name__})")
-    sc = write_script(a, g, idea, inspo, secs)
+    bible = {} if a.no_llm else storycraft.plan(g, idea, inspo, secs)   # plan a gripping story first
+    brief = idea if a.no_llm else "\n".join(x for x in (idea, storycraft.craft(g), storycraft.bible_text(bible), storycraft.rules()) if x)
+    sc = write_script(a, g, brief, inspo, secs)
+    if not a.no_llm and len(sc["lines"]) > 2:   # punch up vague / repetitive lines (the last line, the CTA or vote, stays)
+        body = sc["lines"][:-1]; new = storycraft.punch_up(g, [l["say"] for l in body], bible)
+        for l, s in zip(body, new):
+            l["say"] = s
+    if bible.get("hook") and str(sc.get("title", "")).lower() in ("", str(idea).lower()[:70]):
+        sc["title"] = str(bible["hook"])[:70]
     name = time.strftime("%Y%m%d-%H%M") + f"-{a.mode}-{g['name']}-{secs}s-{a.orientation}-" + slug(sc["title"], 28)
     d = str(WORK / name); os.makedirs(d, exist_ok=True)
     json.dump(sc, open(os.path.join(d, "story.json"), "w", encoding="utf-8"), indent=1, ensure_ascii=False)

@@ -10,12 +10,17 @@ ENGINE = ROOT / "vendor" / "animation-skills" / "skills" / "stick-figure" / "eng
 SETUPS = ["closeup", "talk", "walk", "run", "crowd", "object", "reveal", "night", "impact", "sea", "bigtext", "think"]
 MOODS = ["calm", "happy", "scared", "shocked", "angry", "sad", "smug", "dizzy", "think"]
 COLS = ["red", "blue", "yellow", "green", "navy", "purple"]
+# explainer genres follow the stick-figure skill; story genres follow a hook -> escalation -> twist -> cliffhanger arc
+EXPLAIN = ("a hook that starts in action, the common belief, a turn on \"But\", examples that build, one shot that shows how it works, "
+           "and a payoff that answers the hook.")
+STORY = ("a hook already in motion, who and where in one line, three escalations that each make things worse with a concrete detail, "
+         "a twist two thirds in that changes everything, and a cliffhanger ending.")
+STRUCTURE = {"science": EXPLAIN, "comedy": EXPLAIN, "motivation": EXPLAIN, "story": STORY}
 
 PROMPT = """You write a {seconds}-second vertical stick-figure cartoon video. Genre: {genre}. Style: {tone}
 Make ONE completely original story or explainer (never copy existing videos). Idea: {idea}
 {inspo}
-Structure (from the stick-figure skill): a hook that starts in action, the common belief, a turn on "But",
-examples that build, one shot that shows how it works, and a payoff that answers the hook. One idea per line, 6-14 words.
+Structure: {structure} One idea per line, 6-14 words.
 For every line choose a "setup" (what we see): closeup (big face reacting), talk (two characters), walk, run, crowd,
 object (a crate labelled with "label"), reveal (a chest opens; "label" pops out), night (dark, lantern, scared),
 impact (comic burst with "label" like BOOM), sea (ship on the sea), bigtext ("label" in huge letters), think (question marks).
@@ -52,6 +57,7 @@ def write_story(g, idea, inspo, secs):
     for attempt in range(3):
         try:
             story = _ollama(PROMPT.format(seconds=secs, genre=g["name"], tone=g["tone"], idea=idea, inspo=ins, moods=", ".join(MOODS),
+                                          structure=STRUCTURE.get(g["name"], STRUCTURE["story"]),
                                           lines=min(n_lines, 16), cta=g["cta"]))
             if story.get("lines"):
                 break
