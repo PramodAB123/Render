@@ -2,6 +2,7 @@
 (MIT, Artem Novitckii; checked out by the workflow into vendor/animation-skills). The engine's rig, props,
 whip transitions, 1-2 word lowercase Poppins captions and grade are used as they are; stick/auto_shots.js
 turns our story timeline into its shot list automatically."""
+import design  # noqa: E402
 import json, os, re, shutil, subprocess
 import requests
 from common import load_config, ROOT, FFMPEG
@@ -40,7 +41,8 @@ Change the setup every line. "mood" is one of: {moods}. "time_of_day": day, dusk
 Reply with JSON only:
 {{"title": "under 60 chars", "description": "2 sentences", "tags": ["5-8 tags"], "thumb_text": "2-4 WORDS",
   "characters": [{{"name": "...", "role": "e.g. blacksmith, king, messenger", "gender": "male|female", "color": "red|blue|yellow|green|navy|purple",
-                    "costume": "none|crown|helmet|hood|wizard|cap|bandana|sailor|captain"}}],
+                    "costume": "none|crown|helmet|hood|wizard|cap|bandana|sailor|captain",
+                    "look": "one sentence: clothes and their colours, hat, beard/glasses/eye patch, what they carry, build"}}],
   "lines": [{{"say": "...", "speaker": "narrator or a character name", "setup": "closeup", "mood": "calm", "who": 0, "label": "",
               "time_of_day": "day", "ground": "grass", "hl": "KEYWORD",
               "image": "one vivid sentence describing the illustrated background of this moment: place, objects, light (no people)"}}]}}
@@ -130,8 +132,13 @@ def write_story(g, idea, inspo, secs):
             costume = next((v for k, v in (("king", "crown"), ("queen", "crown"), ("soldier", "helmet"), ("knight", "helmet"), ("guard", "helmet"),
                                            ("wizard", "wizard"), ("monk", "hood"), ("thief", "hood"), ("smith", "cap"), ("pirate", "bandana"),
                                            ("sailor", "sailor"), ("captain", "captain")) if k in role), "none")
-        cast.append({"name": str(c.get("name") or f"Hero{i}"), "col": col, "costume": costume,
-                     "gender": _pick(c.get("gender"), ["male", "female"], "male")})
+        gen = _pick(c.get("gender"), ["male", "female"], "male"); nm = str(c.get("name") or f"Hero{i}")
+        lk = design.design(nm, str(c.get("look") or ""), i, gen, role)
+        if costume == "none":
+            costume = lk["costume"]
+        cast.append({"name": nm, "col": col, "costume": costume, "gender": gen, **{k: v for k, v in lk.items() if k != "costume"}})
+        if c.get("color") in COLS and not c.get("look"):
+            cast[-1]["cols"] = None   # keep the engine palette the writer picked
     # voices: storyteller narrator (genre voice, a touch slower); each character speaks with its own free Edge voice and mood
     from toon import VOICES, MOOD
     used = {g.get("voice", {}).get("edge_voice")}; vmap = {}
@@ -192,9 +199,12 @@ def from_screenplay(g, text):
     cast = []
     for i, n in enumerate(names or ["Hero"]):
         low = n.lower(); ghost = "ghost" in low or "spirit" in low
-        costume = "captain" if "captain" in low else "crown" if ("king" in low or "queen" in low) else "helmet" if "soldier" in low else "bandana"
-        gender = "female" if any(w in low for w in ("queen", "girl", "woman", "mother", "lady", "princess", "she")) else "male"
-        cast.append({"name": n, "col": ["red", "yellow", "blue", "green", "purple", "navy"][i % 6], "costume": costume, "gender": gender, "ghost": ghost})
+        desc = design.about(n, '. '.join(x['visual'] for x in scenes), names)
+        gender = "female" if any(w in (low + " " + desc.lower()) for w in ("queen", "girl", "woman", "mother", "lady", "princess", " she ", " her ")) else "male"
+        lk = design.design(n, desc, i, gender)
+        costume = lk["costume"] if lk["costume"] != "none" else "bandana"
+        cast.append({"name": n, "col": ["red", "yellow", "blue", "green", "purple", "navy"][i % 6], "gender": gender,
+                     **lk, "costume": costume, "ghost": ghost or lk["ghost"]})
     idx = {c["name"]: k for k, c in enumerate(cast)}
     lines, prev_scene, place = [], -1, None
     prompts = []
@@ -234,7 +244,8 @@ def from_screenplay(g, text):
     skill_voice(lines, cast)
     title = next((s["title"] for s in scenes if s["title"]), "My story")
     print(f"  screenplay: {len(scenes)} scenes, {len(lines)} spoken lines, {'Hindi' if hindi else 'English'} voices, cast: "
-          + ", ".join(f"{c['name']} ({c['costume']}{', ghost' if c['ghost'] else ''})" for c in cast))
+          + ", ".join(f"{c['name']} ({c['costume']}{', ghost' if c['ghost'] else ''}{', ' + c['prop'] if c.get('prop') else ''}"
+                      f"{''.join(', ' + e for e in c.get('extras', []))})" for c in cast))
     return {"title": title[:70], "description": " ".join(s["title"] for s in scenes)[:300], "tags": [], "thumb_text": title.upper()[:24],
             "lines": lines, "cast": cast, "hindi": hindi}
 
@@ -328,8 +339,17 @@ def render(sc, tl, d, g, size=(1080, 1920), ai=False):
     open(os.path.join(web, "words.js"), "w", encoding="utf-8").write("const WORDS=" + json.dumps(words) + ";\n")
     open(os.path.join(web, "warp.js"), "w", encoding="utf-8").write("window.WARP = null;\n")
     engine_hats = {"bandana": "bandana", "sailor": "sailor", "captain": "captain"}   # the rest are drawn by stick/auto_shots.js
-    cast_js = [f"C(PAL_X('{c['col']}'), {{ hat: '{engine_hats.get(c['costume'], 'nohat')}', acc: '{c['costume'] if c['costume'] not in engine_hats else 'none'}', "
-               f"hatCol: '{['#d8312b', '#6c43c0', '#2f63c9', '#3fa35b'][i % 4]}', dotCol: '#fff', ghost: {'true' if c.get('ghost') else 'false'} }})" for i, c in enumerate(sc["cast"])]
+    def _look(c, i):
+        o = {"hat": engine_hats.get(c["costume"], "nohat"), "acc": c["costume"] if c["costume"] not in engine_hats else "none",
+             "hatCol": (c.get("cols") or [None, None])[0] if c["costume"] == "bandana" and c.get("cols") else ['#d8312b', '#6c43c0', '#2f63c9', '#3fa35b'][i % 4],
+             "dotCol": "#fff", "ghost": bool(c.get("ghost")), "extras": c.get("extras", []), "propName": c.get("prop"),
+             "size": c.get("size", 1.0), "glow": c.get("glow", "#8dffc0")}
+        if c.get("cols"):
+            o["cols"] = c["cols"]
+        if c.get("vest"):
+            o["vest"] = c["vest"]
+        return o
+    cast_js = [f"C(PAL_X('{c['col']}'), {json.dumps(_look(c, i))})" for i, c in enumerate(sc["cast"])]
     data = {"segs": [{k: s.get(k) for k in ("start", "dur", "setup", "mood", "who", "label", "tod", "ground", "hl", "words", "speaker", "bg", "fx")} for s in tl["segs"]],
             "total": tl["total"], "style": {"accent": g.get("thumb_color", "#e0392f")}}
     open(os.path.join(web, "stick_data.js"), "w", encoding="utf-8").write(
