@@ -13,7 +13,7 @@ There is no fallback between modes: an unknown mode, or a renderer that fails, s
 import argparse, json, os, re, sys, time
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "pipeline"))
 from common import load_config, genre_cfg, slug, WORK, OUTPUT  # noqa: E402
-import ideas, scriptgen, voice, timeline, stock, cinema, thumbnail, toon, stick, reference, storycraft  # noqa: E402
+import ideas, scriptgen, voice, timeline, stock, cinema, thumbnail, toon, stick, reference, storycraft, custom  # noqa: E402
 
 
 # ---------------------------------------------------------------- script writers
@@ -82,6 +82,7 @@ def main():
     ap.add_argument("--orientation", default="portrait", choices=["portrait", "landscape"],
                     help="portrait 9:16 (Shorts / Reels) or landscape 16:9 (normal YouTube video)")
     ap.add_argument("--reference", help="optional link (YouTube or any page) to base the idea and tone on")
+    ap.add_argument("--script", help="your own script: the narrator says exactly this (separate lines with | or new lines)")
     ap.add_argument("--idea"); ap.add_argument("--upload", action="store_true"); ap.add_argument("--no-llm", action="store_true")
     ap.add_argument("--full-quality", action="store_true", help="cinema mode: render 3D at full resolution (slower)")
     a = ap.parse_args(); t0 = time.time()
@@ -97,18 +98,30 @@ def main():
 
     step = lambda s: print(f"{s}   [{(time.time() - t0) / 60:.1f} min]", flush=True)
     step("1/7 idea")
+    says = custom.split(a.script)
+    if says:
+        print(f"  custom script: {len(says)} lines, {sum(len(s.split()) for s in says)} words (used word for word)")
     if reference.is_link(a.idea) and not a.reference:   # a link pasted into the idea box counts as a reference
         a.reference, a.idea = a.idea.strip(), None
     ref = reference.read(a.reference) if a.reference else None
-    if ref:
+    if says:
+        idea, inspo = (a.idea or says[0]), []
+    elif ref:
         idea, inspo = reference.to_idea(ref, a.idea), [ref["title"]]
     else:
         idea, inspo = (a.idea, []) if a.idea else ideas.pick_idea(g)
     step(f"2/7 script ({write_script.__name__})")
-    bible = {} if a.no_llm else storycraft.plan(g, idea, inspo, secs)   # plan a gripping story first
-    brief = idea if a.no_llm else "\n".join(x for x in (idea, storycraft.craft(g), storycraft.bible_text(bible), storycraft.rules()) if x)
-    sc = write_script(a, g, brief, inspo, secs)
-    if not a.no_llm and len(sc["lines"]) > 2:   # punch up vague / repetitive lines (the last line, the CTA or vote, stays)
+    if says:   # your own script: keep every word; the writers only choose what we see
+        bible = {}
+        if write_script is script_narration:
+            sc = custom.narration(g, says)
+        else:
+            sc = write_script(a, g, custom.brief(says, a.idea), [], secs); sc["lines"] = custom.align(sc["lines"], says)
+    else:
+        bible = {} if a.no_llm else storycraft.plan(g, idea, inspo, secs)   # plan a gripping story first
+        brief = idea if a.no_llm else "\n".join(x for x in (idea, storycraft.craft(g), storycraft.bible_text(bible), storycraft.rules()) if x)
+        sc = write_script(a, g, brief, inspo, secs)
+    if not says and not a.no_llm and len(sc["lines"]) > 2:   # punch up vague / repetitive lines (the last line, the CTA or vote, stays)
         body = sc["lines"][:-1]; new = storycraft.punch_up(g, [l["say"] for l in body], bible)
         for l, s in zip(body, new):
             l["say"] = s
@@ -120,7 +133,11 @@ def main():
     step("3/7 voice");    durs = voice.voice_lines(sc["lines"], d, g)
     gap = None
     if a.mode != "cinema":   # land close to the length that was picked (speed up or add pauses)
-        durs, gap = voice.fit_length(sc["lines"], durs, d, secs, g.get("gap", timeline.GAP))
+        natural = sum(durs) + timeline.GAP * len(durs) + 1.7
+        target = secs if not says or abs(natural - secs) <= secs * 0.3 else None   # a custom script keeps its own length if far off
+        if says and target is None:
+            print(f"  length: your script runs about {natural:.0f}s; keeping that instead of {secs}s")
+        durs, gap = voice.fit_length(sc["lines"], durs, d, target, g.get("gap", timeline.GAP))
     step(f"4/7 visuals ({render_visuals.__name__})")
     render_visuals(a, sc, durs, gap, d, g, size)
     if not os.path.exists(os.path.join(d, "video.mp4")):
@@ -132,7 +149,7 @@ def main():
                                                   total=tl["total"], color=g.get("thumb_color", "#ffe34a"))
     thumbnail.sheet(final, str(out / "sheet.jpg"), tl["total"])   # quick-review contact sheet with the safe area marked
     meta = {k: sc.get(k) for k in ("title", "description", "tags")}
-    meta.update(reference=a.reference or None, mode=a.mode, renderer=render_visuals.__name__, genre=g["name"], length_s=secs, orientation=a.orientation,
+    meta.update(reference=a.reference or None, custom_script=bool(says), mode=a.mode, renderer=render_visuals.__name__, genre=g["name"], length_s=secs, orientation=a.orientation,
                 format="short" if (not land and secs <= 180) else f"{secs}s-{a.orientation}")
     if stock.USED_CREDITS:  # Pexels/Pixabay ask creators to be credited
         meta["description"] = (meta.get("description") or "") + "\n\nFootage: " + "; ".join(stock.USED_CREDITS)

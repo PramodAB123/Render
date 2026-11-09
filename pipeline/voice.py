@@ -106,5 +106,5 @@ def fit_length(lines, durs, d, target, gap):
         extra = min(0.6, (target - total) / max(1, len(durs)))
         gap += extra; print(f"  length: {total:.0f}s narrated for a {target}s video -> pauses +{extra:.2f}s per line")
     new = eff() + gap * len(durs) + 1.7
-    print(f"  length: final about {new:.0f}s (asked {target}s)")
+    print(f"  length: final about {new:.0f}s" + (f" (asked {target}s)" if target else " (your script's own length)"))
     return durs, gap
