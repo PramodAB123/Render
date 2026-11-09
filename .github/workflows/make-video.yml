@@ -2,7 +2,7 @@
 # Daily at 13:30 UTC (7 PM India), or on demand: Actions tab > "Make video" > Run workflow.
 name: Make video
 # The run list shows mode, genre and branch, so you can see at a glance what each run made.
-run-name: "${{ inputs.mode || 'stock' }} · ${{ inputs.genre || 'daily rotate' }} · ${{ inputs.length || '30 sec' }} · ${{ inputs.orientation || 'portrait' }} · ${{ github.ref_name }}"
+run-name: "${{ inputs.mode || 'ai' }} · ${{ inputs.genre || 'daily rotate' }} · ${{ inputs.length || '30 sec' }} · ${{ inputs.orientation || 'portrait' }} · ${{ github.ref_name }}"
 
 on:
   schedule:
@@ -25,18 +25,15 @@ on:
         type: choice
         options: [portrait, landscape]
       mode:
-        description: "Visuals: stock clips, ai images, mix, doc (documentary look), 2d (animated cartoon story), stick (stick-figure explainer), or cinema (3D room, Shorts only)"
-        default: "stock"
+        description: "ai: AI-illustrated scenes + stick characters (reference style) | stick: drawn stick-figure scenes | 2d: flat cartoon | doc: documentary AI stills | cinema: 3D room"
+        default: "ai"
         type: choice
-        options: [stock, ai, mix, doc, 2d, stick, cinema]
+        options: [ai, stick, 2d, doc, cinema]
       script:
         description: "Your own script (optional). Plain lines separated by | are read word for word. A screenplay (Scene 1 ... Visual: ... SFX: ... Narrator: \"...\" Dialogue - Name: \"...\") is understood: only Narrator/Dialogue are spoken, any language incl. Hindi"
         required: false
       reference:
         description: "Optional reference link (YouTube video or any web page) - the new video borrows its topic and tone, not its content"
-        required: false
-      idea:
-        description: "Optional idea (leave empty to use trending YouTube ideas)"
         required: false
       upload:
         description: "Upload to YouTube"
@@ -56,8 +53,6 @@ jobs:
       OLLAMA_MODELS: /home/runner/.ollama/models
       BROWSER_CHANNEL: ""            # use Playwright's bundled Chromium instead of Edge
       YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
-      PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
       YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
       YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
       YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
@@ -91,28 +86,28 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --silent
 
       - name: Chromium for the 3D cinema, 2D and stick modes
-        if: ${{ inputs.mode == 'cinema' || inputs.mode == '2d' || inputs.mode == 'stick' }}
+        if: ${{ inputs.mode == 'cinema' || inputs.mode == '2d' || inputs.mode == 'stick' || inputs.mode == 'ai' || inputs.mode == '' }}
         run: npx playwright install --with-deps chromium
 
       - name: Free AI image model (CPU) for ai / mix visuals
-        if: ${{ inputs.mode == 'ai' || inputs.mode == 'mix' || inputs.mode == 'doc' }}
+        if: ${{ inputs.mode == 'ai' || inputs.mode == 'doc' || inputs.mode == '' }}
         run: pip install -q torch --index-url https://download.pytorch.org/whl/cpu && pip install -q diffusers transformers accelerate safetensors
 
       - name: Restore the AI image model from cache
         id: hfcache
-        if: ${{ inputs.mode == 'ai' || inputs.mode == 'mix' || inputs.mode == 'doc' }}
+        if: ${{ inputs.mode == 'ai' || inputs.mode == 'doc' || inputs.mode == '' }}
         uses: actions/cache/restore@v6
         with: { path: /home/runner/.cache/huggingface, key: "hf-dreamshaper-8-lcm" }
 
       # stick mode: the skill's free voice (Kokoro) and word timings (Parakeet), ~1 GB, downloaded once and cached
       - name: Restore stick voice models from cache
         id: voicecache
-        if: ${{ inputs.mode == 'stick' }}
+        if: ${{ inputs.mode == 'stick' || inputs.mode == 'ai' || inputs.mode == '' }}
         uses: actions/cache/restore@v6
         with: { path: models, key: "stick-voice-kokoro1-parakeet-v2" }
 
       - name: Download stick voice models
-        if: ${{ inputs.mode == 'stick' && steps.voicecache.outputs.cache-hit != 'true' }}
+        if: ${{ (inputs.mode == 'stick' || inputs.mode == 'ai' || inputs.mode == '') && steps.voicecache.outputs.cache-hit != 'true' }}
         continue-on-error: true   # without them stick mode falls back to the Edge voice
         run: |
           mkdir -p models
@@ -123,7 +118,7 @@ jobs:
           fi
 
       - name: Save stick voice models to cache
-        if: ${{ inputs.mode == 'stick' && steps.voicecache.outputs.cache-hit != 'true' }}
+        if: ${{ (inputs.mode == 'stick' || inputs.mode == 'ai' || inputs.mode == '') && steps.voicecache.outputs.cache-hit != 'true' }}
         continue-on-error: true
         uses: actions/cache/save@v6
         with: { path: models, key: "stick-voice-kokoro1-parakeet-v2" }
@@ -168,20 +163,18 @@ jobs:
 
       - name: Make the video
         env:
-          MODE: ${{ inputs.mode || 'stock' }}
+          MODE: ${{ inputs.mode || 'ai' }}
           LENGTH: ${{ inputs.length || '30 sec' }}
           ORIENTATION: ${{ inputs.orientation || 'portrait' }}
           GENRE: ${{ inputs.genre || 'rotate' }}   # daily runs rotate through all genres
-          IDEA: ${{ inputs.idea }}
           REFERENCE: ${{ inputs.reference }}
           SCRIPT: ${{ inputs.script }}
           WANT_UPLOAD: ${{ github.event_name == 'schedule' || inputs.upload }}
         run: |
           echo "branch: ${GITHUB_REF_NAME}  commit: ${GITHUB_SHA::7}  mode: $MODE  genre: $GENRE"
-          if [ "$MODE" = "stick" ] && [ ! -f vendor/animation-skills/skills/stick-figure/engine/template/web/chars.js ]; then
+          if { [ "$MODE" = "stick" ] || [ "$MODE" = "ai" ]; } && [ ! -f vendor/animation-skills/skills/stick-figure/engine/template/web/chars.js ]; then
             echo "stick mode needs the claude-animation-skills checkout, which is missing"; exit 1; fi
           ARGS=(--genre "$GENRE" --mode "$MODE" --length "$LENGTH" --orientation "$ORIENTATION")
-          if [ -n "$IDEA" ]; then ARGS+=(--idea "$IDEA"); fi
           if [ -n "$REFERENCE" ]; then ARGS+=(--reference "$REFERENCE"); fi
           if [ -n "$SCRIPT" ]; then ARGS+=(--script "$SCRIPT"); fi
           if [ "$WANT_UPLOAD" = "true" ]; then
@@ -199,7 +192,7 @@ jobs:
 
       - name: Save the AI image model to cache
         continue-on-error: true
-        if: ${{ always() && (inputs.mode == 'ai' || inputs.mode == 'mix' || inputs.mode == 'doc') && steps.hfcache.outputs.cache-hit != 'true' }}
+        if: ${{ always() && (inputs.mode == 'ai' || inputs.mode == 'doc' || inputs.mode == '') && steps.hfcache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v6
         with: { path: /home/runner/.cache/huggingface, key: "hf-dreamshaper-8-lcm" }
 

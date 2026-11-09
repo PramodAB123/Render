@@ -49,16 +49,21 @@ def render_stick(a, sc, durs, gap, d, g, size):
     stick.render(sc, tl, d, g, size)
 
 
+def render_ai(a, sc, durs, gap, d, g, size):
+    """AI-illustrated scenes from the script's visual details, with the stick characters acting on them."""
+    tl = timeline.build_timeline(sc["lines"], durs, d, g, gap=gap)
+    stick.render(sc, tl, d, g, size, ai=True)
+    json.dump(tl, open(os.path.join(d, "timeline.json"), "w"), indent=1)
+
+
 def render_cinema(a, sc, durs, gap, d, g, size):
     cinema.render(sc, d, g, fast=not a.full_quality)
 
 
 MODES = {
     #  mode      script writer       renderer         what it is
-    "stock":  (script_narration, render_footage, "free Pixabay/Pexels clips + word-timed captions"),
-    "ai":     (script_narration, render_footage, "AI images (DreamShaper LCM on the runner) with camera moves"),
-    "mix":    (script_narration, render_footage, "AI images and stock clips, alternating"),
-    "doc":    (script_narration, render_footage, "documentary: AI stills + footage, crossfades, chapter cards"),
+    "ai":     (script_stick,     render_ai,      "AI-illustrated scenes from the script's visual details + stick characters"),
+    "doc":    (script_narration, render_footage, "documentary: AI stills with camera moves, crossfades, chapter cards"),
     "2d":     (script_toon,      render_toon,    "2D flat-vector cartoon (toon/toon.html, GSAP)"),
     "stick":  (script_stick,     render_stick,   "stick-figure engine from claude-animation-skills (stick/auto_shots.js)"),
     "cinema": (script_narration, render_cinema,  "3D code-cinema room (portrait, up to 1 min)"),
@@ -83,7 +88,7 @@ def main():
                     help="portrait 9:16 (Shorts / Reels) or landscape 16:9 (normal YouTube video)")
     ap.add_argument("--reference", help="optional link (YouTube or any page) to base the idea and tone on")
     ap.add_argument("--script", help="your own script: the narrator says exactly this (separate lines with | or new lines)")
-    ap.add_argument("--idea"); ap.add_argument("--upload", action="store_true"); ap.add_argument("--no-llm", action="store_true")
+    ap.add_argument("--idea", help="(optional) a starting idea; the Run workflow form no longer has this box"); ap.add_argument("--upload", action="store_true"); ap.add_argument("--no-llm", action="store_true")
     ap.add_argument("--full-quality", action="store_true", help="cinema mode: render 3D at full resolution (slower)")
     a = ap.parse_args(); t0 = time.time()
     a.mode = str(a.mode).strip().lower()
@@ -114,7 +119,7 @@ def main():
     step(f"2/7 script ({write_script.__name__})")
     if says:   # your own script: keep every word; the writers only choose what we see
         bible = {}
-        if play and a.mode == "stick":
+        if play and a.mode in ("stick", "ai"):
             sc = play
         elif write_script is script_narration:
             sc = custom.narration(g, says)
@@ -154,7 +159,7 @@ def main():
     tl = json.load(open(os.path.join(d, "timeline.json")))
     out = OUTPUT / name; out.mkdir(parents=True, exist_ok=True); final = str(out / "final.mp4")
     step("5/7 music + mix")
-    if a.mode == "stick":   # the stick-figure skill's own underscore, ducking and -14 LUFS master
+    if a.mode in ("stick", "ai"):   # the stick-figure skill's own underscore, ducking and -14 LUFS master
         import scene_sfx, stick_audio, soundfile as sf_, numpy as np_
         timeline._voice_track(d, tl); sf_.write(os.path.join(d, "sfx.wav"), np_.zeros(int((tl["total"] + 1) * 44100), dtype="float32"), 44100)
         scene_sfx.add(d, tl); stick_audio.mix(d, final, tl, g["name"])

@@ -211,11 +211,51 @@ cast.ghostIdx = CAST.findIndex(c => c.ghost);
 if (cast.ghostIdx < 0) cast.ghostIdx = null;
 
 const SHOTS = [];
+
+// ---------- 'ai' mode: AI-illustrated background per scene, stick characters acting on top (reference-video style) ----------
+SETUPS.aibg = function (ctx, lt, t, s) {
+  const img = window.BG && window.BG[s.bg]; const i = D.segs.indexOf(s); const dir = i % 2 ? 1 : -1;
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#111'; ctx.fillRect(0, 0, W, H);
+  const hh = handheld(t, 2.5), z = 1.04 + lt * .022, px = dir * (8 + lt * 9);
+  if (img && img.naturalWidth) { ctx.save(); ctx.translate(540 + px + hh[0], 960 + hh[1]); ctx.scale(z, z); ctx.drawImage(img, -540, -960, 1080, 1920); ctx.restore(); }
+  else { (SETUPS[s.base] || SETUPS.talk)(ctx, lt, t, s); return; }
+  // ground shadow band so the characters sit in the picture
+  const g = ctx.createLinearGradient(0, H * .72, 0, H); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.35)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  const cam = { x: 540 + px * .3, y: 960, z: 1 + lt * .012 }; applyCam(ctx, cam, 1);
+  const tk = talkingAt(s, t), base = s.base || 'talk', ghostSpeaks = /ghost/i.test(s.speaker || '');
+  const gesture = tk ? { L: [.3, -.1], R: [1.2 + Math.sin(t * 5) * .2, -.6] } : POSE.idle.arms;
+  if (ghostSpeaks && cast.ghostIdx != null) {
+    const gy = 1500 + Math.sin(t * 2) * 14; ctx.save(); ctx.globalAlpha = .62; ctx.shadowColor = '#5dff9a'; ctx.shadowBlur = 60;
+    stickA(ctx, C(CAST[cast.ghostIdx], { x: 650, y: gy, s: 640, sil: '#8dffc0', shadow: false, arms: { L: [2.2, .4], R: [1.2, -.3] } })); ctx.restore();
+    stickA(ctx, C(cast(0), { x: 260, y: 1760, s: 470, face: face('scared', false, t), arms: POSE.handsUp.arms }));
+  } else if (['talk', 'bridge', 'jungle'].includes(base) && CAST.length > 1) {
+    const a = s.who || 0, b = (a + 1) % CAST.length;
+    stickA(ctx, C(cast(a), { x: 330, y: 1760, s: 560, bob: Math.sin(t * 4) * .006, face: face(s.mood, tk, t), arms: gesture }));
+    stickA(ctx, C(cast(b), { x: 770, y: 1780, s: 520, flip: -1, bob: Math.sin(t * 4 + 1) * .006, face: face('calm', false, t, 1.3) }));
+  } else if (['crowd', 'armies', 'kingdoms'].includes(base)) {
+    [[180, 1740, 380], [900, 1740, 380], [380, 1790, 440], [700, 1800, 440]].forEach(([x, y, z2], k) =>
+      stickA(ctx, C(cast(k), { x, y, s: z2, flip: x > 540 ? -1 : 1, bob: Math.sin(t * 4 + k) * .01, face: face(s.mood, k == 0 && tk, t, k), arms: s.mood == 'happy' ? POSE.handsUp.arms : POSE.idle.arms })));
+  } else if (base == 'closeup') {
+    stickA(ctx, C(cast(s.who), { x: 540, y: 2250, s: 1300, shadow: false, headTilt: Math.sin(t * 1.6) * .03, face: face(s.mood, tk, t), arms: { L: [.25, -.1], R: [.25, -.1] } }));
+  } else if (base == 'walk' || base == 'run' || base == 'messenger') {
+    const sp = base == 'walk' ? 8 : 15;
+    stickA(ctx, C(cast(s.who), { x: 300 + lt * 70, y: 1780, s: 560, legs: walkLegs(t, sp, base == 'walk' ? .5 : .9), arms: walkArms(t, sp, .8), lean: base == 'walk' ? .05 : .16, face: face(s.mood, tk, t) }));
+  } else {
+    stickA(ctx, C(cast(s.who), { x: i % 3 == 0 ? 540 : (i % 3 == 1 ? 340 : 740), y: 1770, s: 580, flip: i % 3 == 2 ? -1 : 1, bob: Math.sin(t * 3) * .006, face: face(s.mood, tk, t), arms: gesture }));
+  }
+  // the reference videos' overlays on top of the picture
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (base == 'impact') { const k = easeOut(clamp(lt / .3)); burst(ctx, 640, 1000, 300 * k, 12, '#ffd23a', 5); if (s.label) text(ctx, s.label.toUpperCase().slice(0, 10), 640, 1000, 110 * k, '#fff', INK, 16); if (lt < .1) darkness(ctx, .4 * (1 - lt / .1), '#fff'); }
+  if (base == 'reveal' || base == 'treasuremap') { const sa = kf(lt, [[.3, 0], [.5, 1], [1.2, .2]]); sparkle(ctx, 620, 1100, 90 * sa, sa); sparkle(ctx, 820, 1020, 60 * sa, sa); }
+  if (base == 'bigtext' && (s.label || s.hl)) { const k = backOut(clamp(lt / .35)), word = (s.label || s.hl).toUpperCase().slice(0, 12); ctx.font = '700 200px Poppins'; const fs = Math.min(200, 200 * 860 / Math.max(1, ctx.measureText(word).width)); ctx.save(); ctx.translate(540, 900); ctx.rotate(-.04); ctx.scale(k, k); text(ctx, word, 0, 0, fs, '#ffd23a', INK, Math.max(10, fs * .09)); ctx.restore(); }
+  if ((s.tod || 'day') == 'night') darkness(ctx, .12, '#0a0c30');
+};
+
 const SINGLE = ['bigtext', 'reveal', 'blueprint', 'treasuremap', 'temple'];   // keep in sync with pipeline/stick.py
 D.segs.forEach((s, i) => { const start = i == 0 ? 0 : s.start, end = i + 1 < D.segs.length ? D.segs[i + 1].start : D.total;
-  const fn = SETUPS[s.setup] || SETUPS.talk; s.who = s.who || 0; const tr = (i % 3 == 2) ? 'cut' : 'whip';
+  if (s.bg) { s.base = s.setup; } const fn = s.bg ? SETUPS.aibg : (SETUPS[s.setup] || SETUPS.talk); s.who = s.who || 0; const tr = (i % 3 == 2) ? 'cut' : 'whip';
   if (end - start > 4.2 && !SINGLE.includes(s.setup)) {   // the skill keeps shots 2-4 s: second angle for long lines
-    const mid = start + (end - start) * .55, alt = s.setup == 'closeup' ? SETUPS.talk : SETUPS.closeup;
+    const mid = start + (end - start) * .55, alt = s.bg ? ((ctx, lt, t, x) => SETUPS.aibg(ctx, lt, t, Object.assign({}, x, { base: x.base == 'closeup' ? 'talk' : 'closeup' }))) : (s.setup == 'closeup' ? SETUPS.talk : SETUPS.closeup);
     SHOTS.push({ start, end: mid, tr: 'cut', draw(ctx, lt, t) { fn(ctx, lt, t, s); } });
     SHOTS.push({ start: mid, end, tr, draw(ctx, lt, t) { alt(ctx, lt, t, s); } });
   } else SHOTS.push({ start, end, tr, draw(ctx, lt, t) { fn(ctx, lt, t, s); } }); });

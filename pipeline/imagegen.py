@@ -25,14 +25,14 @@ def _load():
     return _pipe
 
 
-def generate(prompt, out, portrait, style, seed=0):
+def generate(prompt, out, portrait, style, seed=0, suffix="highly detailed, realistic, cinematic composition", negative_extra=""):
     """Writes a PNG to `out`. Raises on failure (caller falls back to stock footage)."""
     import torch
     c = load_config()["image"]; w, h = c["size"]
     if portrait:
         w, h = h, w
-    full = f"{prompt}, {style}, highly detailed, realistic, cinematic composition"
-    img = _load()(full, negative_prompt=c["negative"], num_inference_steps=c["steps"], guidance_scale=c["guidance"],
+    full = f"{prompt}, {style}, {suffix}"
+    img = _load()(full, negative_prompt=c["negative"] + (", " + negative_extra if negative_extra else ""), num_inference_steps=c["steps"], guidance_scale=c["guidance"],
                   width=w, height=h, generator=torch.Generator().manual_seed(seed)).images[0]
     img.save(out)
     return out

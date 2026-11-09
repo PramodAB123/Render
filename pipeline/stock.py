@@ -84,7 +84,7 @@ def _plan(S, visuals, ic):
     elif visuals == "mix":
         want = [i % 2 == 0 for i in range(len(S))]; cap = ic.get("max_images_mix", 10)
     elif visuals == "doc":
-        want = [bool(s.get("chapter")) or i % 2 == 1 for i, s in enumerate(S)]; cap = ic.get("max_images_doc", 12)
+        want = [True] * len(S); cap = ic.get("max_images", 24)
     else:
         return [False] * len(S)
     out, n = [], 0
@@ -98,7 +98,7 @@ def render(tl, d, g, size, visuals="stock"):
     doc = documentary look: AI stills with slow camera moves + stock footage, crossfades, cinematic bars."""
     W, H = size; portrait = H > W; fps = load_config()["video"]["fps"]; S = tl["segs"]; used = set(); parts = []
     ic = load_config()["image"]; plan = _plan(S, visuals, ic); planned = sum(plan); ai_count = 0
-    doc = visuals == "doc"; T = load_config()["video"].get("crossfade", 0.8) if doc else 0; Tf = int(round(T * fps))
+    doc = visuals == "doc"; T = load_config()["video"].get("crossfade", 0.8) if doc else 0; Tf = int(round(T * fps)); last_img = 0
     base = []
     for i, s in enumerate(S):
         a = 0 if i == 0 else S[i]["start"]; b = S[i + 1]["start"] if i + 1 < len(S) else tl["total"]; ln = round(b - a, 3)
@@ -113,15 +113,17 @@ def render(tl, d, g, size, visuals="stock"):
                 t0 = time.time()
                 imagegen.generate(s.get("image") or s.get("visual") or s["text"], img, portrait,
                                   g.get("image_style", "") + (", documentary film still" if doc else ""), seed=i)
-                ai_count += 1; dt = time.time() - t0
+                ai_count += 1; dt = time.time() - t0; last_img = i
                 print(f"  scene {i + 1}/{len(S)}: AI image {ai_count}/{planned} in {dt:.0f}s  ({(s.get('image') or s.get('visual') or '')[:60]})")
                 if ai_count == 1 and planned > 1:
                     print(f"  (about {dt * (planned - 1) / 60:.0f} more minutes for the remaining AI images)")
                 src = ["-i", img]; vf = _ken_burns(i, W, H, fps, n) + ",setsar=1," + grade
             except Exception as e:
                 print(f"  scene {i + 1}: AI image failed ({type(e).__name__}: {str(e)[:100]}) - using stock footage")
+        if src is None and ai_count and os.path.exists(os.path.join(d, f"img{last_img}.png")):   # reuse the last picture (no stock footage)
+            src = ["-i", os.path.join(d, f"img{last_img}.png")]; vf = _ken_burns(i + 1, W, H, fps, n) + ",setsar=1," + grade
         if src is None:
-            clip = find_clip(s.get("visual") or s["text"], used, g.get("visual_style", ""), portrait)
+            clip = None
             if clip:
                 print(f"  scene {i + 1}/{len(S)}: clip {clip.name}  ({s.get('visual')})")
                 src = ["-stream_loop", "-1", "-i", str(clip)]

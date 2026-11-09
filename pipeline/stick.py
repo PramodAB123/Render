@@ -42,11 +42,12 @@ Reply with JSON only:
   "characters": [{{"name": "...", "role": "e.g. blacksmith, king, messenger", "gender": "male|female", "color": "red|blue|yellow|green|navy|purple",
                     "costume": "none|crown|helmet|hood|wizard|cap|bandana|sailor|captain"}}],
   "lines": [{{"say": "...", "speaker": "narrator or a character name", "setup": "closeup", "mood": "calm", "who": 0, "label": "",
-              "time_of_day": "day", "ground": "grass", "hl": "KEYWORD"}}]}}
+              "time_of_day": "day", "ground": "grass", "hl": "KEYWORD",
+              "image": "one vivid sentence describing the illustrated background of this moment: place, objects, light (no people)"}}]}}
 "who" is the index of the character on screen. Write about {lines} lines. The last line ends with: "{cta}" """
 
 MORE = """Continue this {genre} stick-figure video with about {lines} more lines in the same JSON line format
-(say, speaker, setup, mood, who, label, time_of_day, ground, hl), building toward the payoff. Last lines so far: {last}
+(say, speaker, setup, mood, who, label, time_of_day, ground, hl, image), building toward the payoff. Last lines so far: {last}
 Reply with JSON only: {{"lines": [...]}}"""
 
 
@@ -105,7 +106,7 @@ def write_story(g, idea, inspo, secs):
                       "mood": _pick(l.get("mood"), MOODS, "calm"), "who": who,
                       "label": str(l.get("label") or "")[:16], "tod": _pick(l.get("time_of_day"), ["day", "dusk", "night", "dawn"], "day"),
                       "ground": _pick(l.get("ground"), ["grass", "sand", "snow", "road", "floor", "sea"], "grass"),
-                      "hl": str(l.get("hl") or "").upper()[:16]})
+                      "hl": str(l.get("hl") or "").upper()[:16], "image": str(l.get("image") or "")[:300]})
     if g["cta"].lower().rstrip(".") not in lines[-1]["say"].lower():
         lines.append({"say": g["cta"], "setup": "bigtext", "mood": "happy", "who": 0, "label": g["cta"].split()[0], "tod": "day", "ground": "grass", "hl": ""})
     # genre conditions: dark genres stay at night/dusk, with scared moods and the lantern scene, whatever the LLM picked
@@ -206,7 +207,7 @@ def from_screenplay(g, text):
         mood = sp.mood(l, setup)
         lines.append({"say": l["say"], "speaker": l["speaker"], "setup": setup, "mood": mood, "who": who, "label": sp.LABEL.get(setup, ""),
                       "tod": tod, "ground": "sea" if setup in ("sea", "storm") else "floor" if setup in ("temple", "throne", "forge") else "grass",
-                      "hl": "", "sfx": sp.sfx_tags(sc["sfx"]) if first else [], "scene_visual": sc["visual"], "scene_title": sc["title"]})
+                      "hl": "", "sfx": sp.sfx_tags(sc["sfx"]) if first else [], "scene_visual": sc["visual"], "scene_title": sc["title"], "image": sc["visual"][:300], "scene": l["scene"]})
     # voices: Hindi scripts get the free Hindi Edge voices; each character a different pitch/speed so they sound distinct
     from toon import VOICES, MOOD
     tweaks = [("-6Hz", "-2%"), ("+10Hz", "+6%"), ("-1Hz", "+3%"), ("+5Hz", "-3%"), ("-10Hz", "+0%")]
@@ -243,7 +244,7 @@ def _render_segments(tl, work, env, out):
     for w in range(workers):
         ids = ",".join(str(i) for i in range(w, shots, workers))
         if ids:
-            procs.append(subprocess.Popen(["node", str(ENGINE / "tools" / "render.js"), "segments", ids], cwd=work, env=env,
+            procs.append(subprocess.Popen(["node", os.path.join(work, "render.js"), "segments", ids], cwd=work, env=env,
                                           stdout=open(os.path.join(work, "seg", f"log{w}.txt"), "w"), stderr=subprocess.STDOUT))
     print(f"  rendering {shots} shots with {workers} workers (stick-figure skill make.sh)")
     if any(p.wait() for p in procs):
@@ -267,14 +268,52 @@ def _count_shots(tl):
 SINGLE = ("bigtext", "reveal", "blueprint", "treasuremap", "temple")
 
 
-def render(sc, tl, d, g, size=(1080, 1920)):
-    """Builds a web folder from the engine + our shots, renders it with the engine's own renderer -> d/video.mp4."""
+BG_STYLE = ("detailed digital cartoon illustration, storybook background art, painterly, rich colours, soft cinematic lighting, "
+            "wide establishing shot, empty scene")
+BG_NEG = "people, person, human, man, woman, child, character, face, body, hands, crowd, text, letters, watermark"
+
+
+def ai_backgrounds(tl, web, g):
+    """'ai' mode: one AI illustration per scene, made from the script's visual details (the screenplay's Visual notes,
+    or the writer's 'image' line), drawn behind the stick characters like the reference videos."""
+    import imagegen
+    from PIL import Image
+    os.makedirs(os.path.join(web, "bg"), exist_ok=True); made = {}; last = None
+    cap = load_config()["image"].get("max_images", 24); style = g.get("image_style", "")
+    for i, sg in enumerate(tl["segs"]):
+        key = sg.get("scene") if sg.get("scene") is not None else i   # screenplay: one picture per scene
+        if key in made:
+            sg["bg"] = made[key]; continue
+        if len(made) >= cap:
+            sg["bg"] = last; continue
+        prompt = (sg.get("image") or sg.get("text") or "").strip()
+        out = os.path.join(web, "bg", f"bg{i}.png")
+        try:
+            imagegen.generate(prompt, out, True, BG_STYLE + (", " + style.split(",")[0] if style else ""), seed=i,
+                              suffix="no people, highly detailed environment", negative_extra=BG_NEG)
+            im = Image.open(out).convert("RGB"); W, H = 1080, 1920; k = max(W / im.width, H / im.height)
+            im = im.resize((int(im.width * k + .5), int(im.height * k + .5)), Image.LANCZOS)
+            x0, y0 = (im.width - W) // 2, (im.height - H) // 2
+            im.crop((x0, y0, x0 + W, y0 + H)).save(out.replace(".png", ".jpg"), quality=90); os.remove(out)
+            made[key] = last = f"bg/bg{i}.jpg"; sg["bg"] = last
+            print(f"  scene background {len(made)}: {prompt[:70]}")
+        except Exception as e:
+            print(f"  background {i} failed ({type(e).__name__}: {str(e)[:80]}); using the drawn scene")
+            sg["bg"] = last
+    return made
+
+
+def render(sc, tl, d, g, size=(1080, 1920), ai=False):
+    """Builds a web folder from the engine + our shots, renders it with the engine's own renderer -> d/video.mp4.
+    ai=True: every shot is an AI-illustrated background with the stick characters acting on it."""
     if not (ENGINE / "template" / "web" / "chars.js").exists():
         raise SystemExit("stick mode needs vendor/animation-skills (the workflow checks it out). Locally: "
                          "git clone https://github.com/artemnovitckii/claude-animation-skills vendor/animation-skills")
     work = os.path.join(d, "stick"); web = os.path.join(work, "web")
     shutil.rmtree(work, ignore_errors=True); shutil.copytree(ENGINE / "template" / "web", web)
     shutil.copy(ROOT / "stick" / "auto_shots.js", os.path.join(web, "shots.js"))
+    if ai:
+        ai_backgrounds(tl, web, g)
     words = []
     for k, s in enumerate(tl["segs"]):
         for w in s.get("words", []):
@@ -284,15 +323,27 @@ def render(sc, tl, d, g, size=(1080, 1920)):
     engine_hats = {"bandana": "bandana", "sailor": "sailor", "captain": "captain"}   # the rest are drawn by stick/auto_shots.js
     cast_js = [f"C(PAL_X('{c['col']}'), {{ hat: '{engine_hats.get(c['costume'], 'nohat')}', acc: '{c['costume'] if c['costume'] not in engine_hats else 'none'}', "
                f"hatCol: '{['#d8312b', '#6c43c0', '#2f63c9', '#3fa35b'][i % 4]}', dotCol: '#fff', ghost: {'true' if c.get('ghost') else 'false'} }})" for i, c in enumerate(sc["cast"])]
-    data = {"segs": [{k: s.get(k) for k in ("start", "dur", "setup", "mood", "who", "label", "tod", "ground", "hl", "words", "speaker")} for s in tl["segs"]],
+    data = {"segs": [{k: s.get(k) for k in ("start", "dur", "setup", "mood", "who", "label", "tod", "ground", "hl", "words", "speaker", "bg")} for s in tl["segs"]],
             "total": tl["total"], "style": {"accent": g.get("thumb_color", "#e0392f")}}
     open(os.path.join(web, "stick_data.js"), "w", encoding="utf-8").write(
         "window.STICK = " + json.dumps(data) + ";\nconst PAL_X = k => ({ cols: PAL[k] || PAL.red });\n"
         "const C0 = (a, b) => Object.assign({}, a, b);\n"
-        f"window.STICK.cast = [{', '.join(x.replace('C(', 'C0(', 1) for x in cast_js)}];\n")
+        f"window.STICK.cast = [{', '.join(x.replace('C(', 'C0(', 1) for x in cast_js)}];\n"
+        # preload the AI backgrounds; the renderer waits for them before drawing frame 0
+        "window.BG = {}; window.__imagesReady = Promise.all([...new Set(window.STICK.segs.map(s => s.bg).filter(Boolean))].map(src => new Promise(r => {"
+        " const im = new Image(); im.onload = im.onerror = () => r(); im.src = src; window.BG[src] = im; })));\n")
     # captions: keep combining marks (\p{M}) so Hindi and other scripts render correctly
     mj = os.path.join(web, "main.js"); js = open(mj, encoding="utf-8").read()
-    open(mj, "w", encoding="utf-8").write(js.replace("[^\\p{L}\\p{N}% ]", "[^\\p{L}\\p{M}\\p{N}% ]"))
+    js = js.replace("[^\\p{L}\\p{N}% ]", "[^\\p{L}\\p{M}\\p{N}% ]")
+    # captions like the reference videos: bold UPPERCASE words in the top third, thicker outline
+    js = js.replace("s.toLowerCase()", "s.toUpperCase()").replace("ctx.translate(540, 1345)", "ctx.translate(540, 470)")
+    js = js.replace("0, 0, 70, '#fff', '#111', 13", "0, 0, 86, '#fff', '#111', 18").replace("0, 0, 70, '#fff', '#111', 0", "0, 0, 86, '#fff', '#111', 0")
+    open(mj, "w", encoding="utf-8").write(js)
+    # the engine's renderer, waiting for the backgrounds to load
+    rj = open(ENGINE / "tools" / "render.js", encoding="utf-8").read()
+    rj = rj.replace("const total = await page.evaluate(() => window.TOTAL_FRAMES);",
+                    "await page.evaluate(() => window.__imagesReady || null);\n  const total = await page.evaluate(() => window.TOTAL_FRAMES);")
+    open(os.path.join(work, "render.js"), "w", encoding="utf-8").write(rj)
     html = open(os.path.join(web, "index.html"), encoding="utf-8").read()
     html = html.replace('<script src="shots.js"></script>', '<script src="stick_data.js"></script><script src="shots.js"></script>')
     open(os.path.join(web, "index.html"), "w", encoding="utf-8").write(html)
