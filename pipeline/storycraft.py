@@ -9,6 +9,9 @@ from common import load_config
 
 # How each genre hooks and holds attention (used in the planning and writing prompts)
 CRAFT = {
+    "adventure": "Adventure that works: a clear prize (treasure, rescue, escape), a crew with distinct personalities, "
+                 "a new dangerous place every few lines (storm, island, jungle, temple, trap), a setback that costs something, "
+                 "a clever win, and a final twist or hook for part two. Show places vividly and keep every line moving.",
     "horror": "Horror that works: an ordinary person, a precise place and time, and ONE wrong detail that gets worse. "
               "Use rules (\"never answer after 3 AM\"), evidence (photos, recordings, footprints), a countdown, and a twist "
               "that recontextualises everything (the call is coming from inside, the rescuer is the threat, the hero is the ghost). "

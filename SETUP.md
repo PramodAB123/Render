@@ -99,7 +99,7 @@ Private repo: 2,000 free minutes/month, then runs are blocked (never billed with
 
 ## Genres
 
-Pick one in the **Genre** dropdown when you press Run workflow. Daily automatic runs rotate through all five.
+There is no Genre box any more: the pipeline reads your script (or reference link) and picks the matching theme itself (voice, colours, music, pacing). Profiles: horror, comedy, science, motivation, mystery, history, adventure. Daily runs with no script rotate through them.
 
 | Genre | Script | Clips | Look | Voice | Music | Pace |
 |---|---|---|---|---|---|---|

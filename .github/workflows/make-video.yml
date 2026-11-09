@@ -1,19 +1,14 @@
 # Runs the whole pipeline on GitHub's free cloud runners (nothing runs on your PC).
 # Daily at 13:30 UTC (7 PM India), or on demand: Actions tab > "Make video" > Run workflow.
 name: Make video
-# The run list shows mode, genre and branch, so you can see at a glance what each run made.
-run-name: "${{ inputs.mode || 'ai' }} · ${{ inputs.genre || 'daily rotate' }} · ${{ inputs.length || '30 sec' }} · ${{ inputs.orientation || 'portrait' }} · ${{ github.ref_name }}"
+# The run list shows mode, length, orientation and branch. The theme comes from the script itself.
+run-name: "${{ inputs.mode || 'ai' }} · ${{ inputs.length || '30 sec' }} · ${{ inputs.orientation || 'portrait' }} · ${{ github.ref_name }}"
 
 on:
   schedule:
     - cron: "30 13 * * *"
   workflow_dispatch:
     inputs:
-      genre:
-        description: "Genre - changes script tone, clips, colours, voice, music and pacing"
-        default: "horror"
-        type: choice
-        options: [horror, comedy, science, motivation, mystery, history]
       length:
         description: "Video length"
         default: "30 sec"
@@ -133,7 +128,7 @@ jobs:
           key: "ollama-v2-${{ env.LLM_MODEL }}"
 
       # If Ollama can't be installed (its servers are sometimes down), this step is skipped
-      # and the video is still made with the built-in genre template script.
+      # and the video is still made with the built-in template script.
       - name: Ollama (free local LLM on the runner)
         continue-on-error: true
         timeout-minutes: 15
@@ -166,15 +161,14 @@ jobs:
           MODE: ${{ inputs.mode || 'ai' }}
           LENGTH: ${{ inputs.length || '30 sec' }}
           ORIENTATION: ${{ inputs.orientation || 'portrait' }}
-          GENRE: ${{ inputs.genre || 'rotate' }}   # daily runs rotate through all genres
           REFERENCE: ${{ inputs.reference }}
           SCRIPT: ${{ inputs.script }}
           WANT_UPLOAD: ${{ github.event_name == 'schedule' || inputs.upload }}
         run: |
-          echo "branch: ${GITHUB_REF_NAME}  commit: ${GITHUB_SHA::7}  mode: $MODE  genre: $GENRE"
+          echo "branch: ${GITHUB_REF_NAME}  commit: ${GITHUB_SHA::7}  mode: $MODE"
           if { [ "$MODE" = "stick" ] || [ "$MODE" = "ai" ]; } && [ ! -f vendor/animation-skills/skills/stick-figure/engine/template/web/chars.js ]; then
             echo "stick mode needs the claude-animation-skills checkout, which is missing"; exit 1; fi
-          ARGS=(--genre "$GENRE" --mode "$MODE" --length "$LENGTH" --orientation "$ORIENTATION")
+          ARGS=(--mode "$MODE" --length "$LENGTH" --orientation "$ORIENTATION")
           if [ -n "$REFERENCE" ]; then ARGS+=(--reference "$REFERENCE"); fi
           if [ -n "$SCRIPT" ]; then ARGS+=(--script "$SCRIPT"); fi
           if [ "$WANT_UPLOAD" = "true" ]; then

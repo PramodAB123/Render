@@ -14,6 +14,7 @@ import argparse, json, os, re, sys, time
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "pipeline"))
 from common import load_config, genre_cfg, slug, WORK, OUTPUT  # noqa: E402
 import ideas, scriptgen, voice, timeline, stock, cinema, thumbnail, toon, stick, reference, storycraft, custom, screenplay  # noqa: E402
+import theme  # noqa: E402
 
 
 # ---------------------------------------------------------------- script writers
@@ -81,7 +82,7 @@ def parse_length(s):
 
 def main():
     cfg = load_config(); ap = argparse.ArgumentParser()
-    ap.add_argument("--genre", default=cfg.get("default_genre", "horror"), help="one of: " + ", ".join(cfg["genres"]) + ", rotate")
+    ap.add_argument("--genre", default="auto", help="auto (default: the theme is read from your script / reference) or force one of: " + ", ".join(cfg["genres"]))
     ap.add_argument("--mode", default=cfg.get("mode", "stock"), help="; ".join(f"{k}: {v[2]}" for k, v in MODES.items()))
     ap.add_argument("--length", default="30 sec", help="30 sec, 1 min, 3 min, 5 min or 10 min")
     ap.add_argument("--orientation", default="portrait", choices=["portrait", "landscape"],
@@ -94,12 +95,20 @@ def main():
     a.mode = str(a.mode).strip().lower()
     if a.mode not in MODES:
         sys.exit(f"Unknown mode {a.mode!r}. Choose one of: {', '.join(MODES)}")
+    if str(a.genre).lower() in ("auto", "", "none"):   # no genre box: the script itself sets the theme
+        src = a.script or a.idea or ""
+        if not src and a.reference:
+            try:
+                r0 = reference.read(a.reference); src = f"{r0.get('title', '')} {r0.get('text', '') or r0.get('description', '')}"
+            except Exception:
+                src = ""
+        a.genre = theme.detect(src, cfg["genres"]) or "rotate"
     g = genre_cfg(a.genre); secs = parse_length(a.length); land = a.orientation == "landscape"
     size = cfg["video"]["long_size"] if land else cfg["video"]["size"]
     if a.mode == "cinema" and (land or secs > 60):
         sys.exit("cinema mode is portrait-only and up to 1 min. Pick portrait + 30 sec / 1 min, or another mode.")
     write_script, render_visuals, what = MODES[a.mode]
-    print(f"== mode: {a.mode} ({what})\n== genre: {g['name']}  length: {secs} s  {a.orientation} {size[0]}x{size[1]}", flush=True)
+    print(f"== mode: {a.mode} ({what})\n== theme: {g['name']}  length: {secs} s  {a.orientation} {size[0]}x{size[1]}", flush=True)
 
     step = lambda s: print(f"{s}   [{(time.time() - t0) / 60:.1f} min]", flush=True)
     step("1/7 idea")

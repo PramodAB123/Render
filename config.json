@@ -1,5 +1,5 @@
 {
-  "default_genre": "horror",
+  "default_genre": "auto",
   "daily_genre": "rotate",
   "mode": "ai",
   "llm": {
@@ -435,6 +435,73 @@
       ],
       "category_id": "27",
       "image_style": "cinematic historical documentary still, period accurate, natural window light, 35mm film grain, muted colours, photorealistic"
+    },
+    "adventure": {
+      "niche": "animated adventure stories: pirates, treasure, quests",
+      "idea_queries": [
+        "animated adventure story shorts",
+        "pirate treasure story",
+        "quest story animation"
+      ],
+      "seed_ideas": [
+        "A small crew finds a map that leads to an island no chart shows",
+        "The last lighthouse keeper sails into the storm to save a lost ship",
+        "Three friends enter a jungle temple where every step is a trap"
+      ],
+      "tone": "exciting animated adventure. Vivid places, quick action, clear goal, one funny sidekick, a big final twist.",
+      "cta": "Follow for part two of the adventure.",
+      "visual_style": "adventure",
+      "visual_hint": "ships, islands, jungles, temples, treasure, storms at sea",
+      "grade": "eq=contrast=1.08:saturation=1.18,colorbalance=rs=0.04:bh=0.04,vignette=PI/5",
+      "voice": {
+        "edge_voice": "en-US-GuyNeural",
+        "rate": "+0%",
+        "pitch": "-2Hz",
+        "fx": ""
+      },
+      "music": {
+        "bpm": 100,
+        "gain": 0.95,
+        "chords": [
+          [
+            50,
+            57,
+            62,
+            66
+          ],
+          [
+            45,
+            52,
+            57,
+            61
+          ],
+          [
+            47,
+            54,
+            59,
+            62
+          ],
+          [
+            43,
+            50,
+            55,
+            59
+          ]
+        ]
+      },
+      "gap": 0.14,
+      "highlight": "&H0040D0FF",
+      "caption_size": 92,
+      "thumb_color": "#ffd040",
+      "tags": [
+        "adventure",
+        "animation",
+        "story",
+        "pirates",
+        "treasure"
+      ],
+      "category_id": "1",
+      "image_style": "epic adventure illustration, vivid colours, dramatic sky, cinematic lighting"
     }
   },
   "image": {
