@@ -196,7 +196,10 @@ def from_screenplay(g, text):
         gender = "female" if any(w in low for w in ("queen", "girl", "woman", "mother", "lady", "princess", "she")) else "male"
         cast.append({"name": n, "col": ["red", "yellow", "blue", "green", "purple", "navy"][i % 6], "costume": costume, "gender": gender, "ghost": ghost})
     idx = {c["name"]: k for k, c in enumerate(cast)}
-    lines, prev_scene = [], -1
+    lines, prev_scene, place = [], -1, None
+    prompts = []
+    for sc in scenes:   # one accurate picture prompt per scene; a scene that names no place stays where the last one was
+        pr, place = sp.place_prompt(sc, place, names); prompts.append(pr)
     for l in spoken:
         sc = scenes[l["scene"]]; setup, tod = sp.direct(sc); first = l["scene"] != prev_scene; prev_scene = l["scene"]
         who = idx.get(l["speaker"], 0)
@@ -207,7 +210,8 @@ def from_screenplay(g, text):
         mood = sp.mood(l, setup)
         lines.append({"say": l["say"], "speaker": l["speaker"], "setup": setup, "mood": mood, "who": who, "label": sp.LABEL.get(setup, ""),
                       "tod": tod, "ground": "sea" if setup in ("sea", "storm") else "floor" if setup in ("temple", "throne", "forge") else "grass",
-                      "hl": "", "sfx": sp.sfx_tags(sc["sfx"]) if first else [], "scene_visual": sc["visual"], "scene_title": sc["title"], "image": sc["visual"][:300], "scene": l["scene"]})
+                      "hl": "", "sfx": sp.sfx_tags(sc["sfx"]) if first else [], "scene_visual": sc["visual"], "scene_title": sc["title"], "image": prompts[l["scene"]], "scene": l["scene"],
+                      "fx": sp.fx_tags(sc["visual"])})
     # voices: Hindi scripts get the free Hindi Edge voices; each character a different pitch/speed so they sound distinct
     from toon import VOICES, MOOD
     tweaks = [("-6Hz", "-2%"), ("+10Hz", "+6%"), ("-1Hz", "+3%"), ("+5Hz", "-3%"), ("-10Hz", "+0%")]
@@ -268,8 +272,7 @@ def _count_shots(tl):
 SINGLE = ("bigtext", "reveal", "blueprint", "treasuremap", "temple")
 
 
-BG_STYLE = ("detailed digital cartoon illustration, storybook background art, painterly, rich colours, soft cinematic lighting, "
-            "wide establishing shot, empty scene")
+BG_STYLE = "detailed cartoon background art, painterly, rich colours, cinematic lighting, wide shot, empty scene"
 BG_NEG = "people, person, human, man, woman, child, character, face, body, hands, crowd, text, letters, watermark"
 
 
@@ -287,6 +290,8 @@ def ai_backgrounds(tl, web, g):
         if len(made) >= cap:
             sg["bg"] = last; continue
         prompt = (sg.get("image") or sg.get("text") or "").strip()
+        if not sg.get("fx"):   # written stories: take the animation cues from the picture line too
+            import screenplay as _sp; sg["fx"] = _sp.fx_tags(prompt + " " + str(sg.get("text", "")))
         out = os.path.join(web, "bg", f"bg{i}.png")
         try:
             imagegen.generate(prompt, out, True, BG_STYLE + (", " + style.split(",")[0] if style else ""), seed=i,
@@ -323,7 +328,7 @@ def render(sc, tl, d, g, size=(1080, 1920), ai=False):
     engine_hats = {"bandana": "bandana", "sailor": "sailor", "captain": "captain"}   # the rest are drawn by stick/auto_shots.js
     cast_js = [f"C(PAL_X('{c['col']}'), {{ hat: '{engine_hats.get(c['costume'], 'nohat')}', acc: '{c['costume'] if c['costume'] not in engine_hats else 'none'}', "
                f"hatCol: '{['#d8312b', '#6c43c0', '#2f63c9', '#3fa35b'][i % 4]}', dotCol: '#fff', ghost: {'true' if c.get('ghost') else 'false'} }})" for i, c in enumerate(sc["cast"])]
-    data = {"segs": [{k: s.get(k) for k in ("start", "dur", "setup", "mood", "who", "label", "tod", "ground", "hl", "words", "speaker", "bg")} for s in tl["segs"]],
+    data = {"segs": [{k: s.get(k) for k in ("start", "dur", "setup", "mood", "who", "label", "tod", "ground", "hl", "words", "speaker", "bg", "fx")} for s in tl["segs"]],
             "total": tl["total"], "style": {"accent": g.get("thumb_color", "#e0392f")}}
     open(os.path.join(web, "stick_data.js"), "w", encoding="utf-8").write(
         "window.STICK = " + json.dumps(data) + ";\nconst PAL_X = k => ({ cols: PAL[k] || PAL.red });\n"

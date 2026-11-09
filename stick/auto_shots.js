@@ -212,17 +212,73 @@ if (cast.ghostIdx < 0) cast.ghostIdx = null;
 
 const SHOTS = [];
 
+
+// ---------- animation cues from the script's Animation/Visual lines (s.fx), drawn over the AI picture ----------
+const FXH = (i, k) => { const x = Math.sin(i * 127.1 + k * 311.7) * 43758.5453; return x - Math.floor(x); };   // fixed random, same every frame
+function fxBefore(s, lt, t) {   // camera: zoom, pan, tilt, shake
+  const f = s.fx || [], o = { z: 0, x: 0, y: 0, r: 0 };
+  const sp = f.includes('slowmo') ? .45 : 1;
+  if (f.includes('zoom')) o.z += .16 * ease(clamp(lt / Math.max(1, s.dur || 3)));
+  if (f.includes('pan')) o.x += (lt * 40 * sp) % 400 - 60;
+  if (f.includes('tilt')) o.r += Math.sin(t * 1.7 * sp) * .045, o.y += Math.sin(t * 1.7 * sp + 1) * 18;
+  if (f.includes('shake') || f.includes('boom')) { const k = f.includes('boom') ? Math.max(0, 1 - lt / .8) : .5; o.x += Math.sin(t * 61) * 14 * k; o.y += Math.cos(t * 53) * 12 * k; }
+  return o;
+}
+function fxAfter(ctx, s, lt, t) {
+  const f = s.fx || []; if (!f.length) return;
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (f.includes('fog')) for (let k = 0; k < 4; k++) {
+    const x = ((t * (18 + k * 9) + k * 300) % 1600) - 260, y = 700 + k * 260, g = ctx.createRadialGradient(x, y, 0, x, y, 520);
+    g.addColorStop(0, 'rgba(225,230,240,.30)'); g.addColorStop(1, 'rgba(225,230,240,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
+  if (f.includes('smoke')) for (let k = 0; k < 7; k++) {
+    const ph = (t * .25 + FXH(k, 1)) % 1, x = 300 + FXH(k, 2) * 500 + Math.sin(t + k) * 40, y = 1500 - ph * 900, r = 140 + ph * 260;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, `rgba(90,255,150,${.28 * (1 - ph)})`); g.addColorStop(1, 'rgba(90,255,150,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
+  if (f.includes('fire')) { const fl = .55 + .25 * Math.sin(t * 13) + .2 * Math.sin(t * 29); const g = ctx.createLinearGradient(0, H, 0, H * .45);
+    g.addColorStop(0, `rgba(255,120,20,${.45 * fl})`); g.addColorStop(1, 'rgba(255,80,0,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    for (let k = 0; k < 26; k++) { const ph = (t * (.5 + FXH(k, 3)) + FXH(k, 4)) % 1; ctx.fillStyle = `rgba(255,${150 + 90 * FXH(k, 5) | 0},40,${1 - ph})`;
+      ctx.beginPath(); ctx.arc(FXH(k, 6) * W + Math.sin(t * 3 + k) * 20, H - ph * 900, 5 + 5 * (1 - ph), 0, 7); ctx.fill(); } }
+  if (f.includes('eyes')) [[250, 760], [820, 690], [560, 980], [130, 1120]].forEach(([x, y], k) => {
+    const bl = ((t + k * .7) % 2.6) < .12 ? .1 : 1; ctx.fillStyle = '#ffe23a'; ctx.shadowColor = '#ffe23a'; ctx.shadowBlur = 30;
+    [-22, 22].forEach(dx => { ctx.beginPath(); ctx.ellipse(x + dx, y, 13, 9 * bl, 0, 0, 7); ctx.fill(); }); ctx.shadowBlur = 0; });
+  if (f.includes('sparkle')) for (let k = 0; k < 14; k++) { const ph = (t * .35 + FXH(k, 7)) % 1, a = Math.sin(ph * Math.PI);
+    sparkle(ctx, 120 + FXH(k, 8) * 840, 1500 - ph * 1000, 18 + 26 * FXH(k, 9), a); }
+  if (f.includes('coins')) for (let k = 0; k < 18; k++) { const ph = (t * (.45 + .3 * FXH(k, 10)) + FXH(k, 11)) % 1, x = 80 + FXH(k, 12) * 920, y = -60 + ph * 2000;
+    ctx.save(); ctx.translate(x, y); ctx.scale(Math.abs(Math.cos(t * 6 + k)) + .15, 1); ctx.fillStyle = '#ffcc2e'; ctx.strokeStyle = '#a8740c'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.arc(0, 0, 26, 0, 7); ctx.fill(); ctx.stroke(); ctx.restore(); }
+  if (f.includes('dust')) for (let k = 0; k < 30; k++) { const ph = (lt * .5 + FXH(k, 13)) % 1; ctx.fillStyle = `rgba(200,180,150,${.6 * (1 - ph)})`;
+    ctx.beginPath(); ctx.arc(FXH(k, 14) * W, 200 + ph * 1500, 4 + 6 * FXH(k, 15), 0, 7); ctx.fill(); }
+  if (f.includes('rain')) { ctx.strokeStyle = 'rgba(200,215,255,.55)'; ctx.lineWidth = 3; ctx.beginPath();
+    for (let k = 0; k < 140; k++) { const x = (FXH(k, 16) * 1300 + t * 260) % 1300 - 110, y = (FXH(k, 17) * 2100 + t * 2300) % 2100 - 100; ctx.moveTo(x, y); ctx.lineTo(x - 18, y + 70); }
+    ctx.stroke(); ctx.fillStyle = 'rgba(20,30,60,.18)'; ctx.fillRect(0, 0, W, H); }
+  if (f.includes('lightning')) { const c = (t % 3.1); if (c < .22) { ctx.fillStyle = `rgba(235,240,255,${.75 * (1 - c / .22)})`; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 9; ctx.shadowColor = '#bcd0ff'; ctx.shadowBlur = 40; ctx.beginPath(); let x = 300 + FXH(Math.floor(t / 3.1), 18) * 500, y = 0; ctx.moveTo(x, y);
+    for (let k = 1; k < 9; k++) { x += (FXH(k, Math.floor(t / 3.1)) - .5) * 160; y += 110; ctx.lineTo(x, y); } ctx.stroke(); ctx.shadowBlur = 0; } }
+  if (f.includes('clash')) { const c = (lt * 1.6) % 1; if (c < .35) { const k = 1 - c / .35; burst(ctx, 545, 1340, 170 * (1.2 - k * .4), 10, '#fff4b0', 7);
+    for (let j = 0; j < 10; j++) { const a = j / 10 * 6.28 + lt, r = 60 + 220 * (1 - k); ctx.fillStyle = '#ffd23a'; ctx.beginPath(); ctx.arc(545 + Math.cos(a) * r, 1340 + Math.sin(a) * r, 9 * k + 2, 0, 7); ctx.fill(); } } }
+  if (f.includes('boom') && lt < .9) { const k = easeOut(clamp(lt / .5)); burst(ctx, 540, 1100, 520 * k, 14, '#ffae2a', 9); darkness(ctx, .55 * (1 - lt / .9), '#fff'); }
+  if (f.includes('arrow')) { const k = clamp((lt % 1.4) / .5); if (k < 1) { const x = 80 + k * 900, y = 1250 - k * 260; ctx.strokeStyle = '#fff'; ctx.lineWidth = 8;
+    ctx.beginPath(); ctx.moveTo(x - 160, y + 46); ctx.lineTo(x, y); ctx.stroke(); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y, 12, 0, 7); ctx.fill(); } }
+  if (f.includes('bubble')) { const k = backOut(clamp(lt / .45)); ctx.save(); ctx.translate(700, 820); ctx.scale(k, k);
+    ctx.fillStyle = '#fff'; ctx.strokeStyle = INK; ctx.lineWidth = 9; ctx.beginPath(); ctx.ellipse(0, 0, 270, 190, 0, 0, 7); ctx.fill(); ctx.stroke();
+    [[-150, 250, 34], [-210, 330, 20]].forEach(([x, y, r]) => { ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.stroke(); });
+    for (let j = 0; j < 7; j++) { ctx.fillStyle = '#ffcc2e'; ctx.strokeStyle = '#a8740c'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(-120 + (j % 4) * 80 + (j > 3 ? 40 : 0), (j > 3 ? 40 : -30) + Math.sin(t * 4 + j) * 8, 32, 0, 7); ctx.fill(); ctx.stroke(); }
+    ctx.restore(); }
+  ctx.restore();
+}
+
 // ---------- 'ai' mode: AI-illustrated background per scene, stick characters acting on top (reference-video style) ----------
 SETUPS.aibg = function (ctx, lt, t, s) {
   const img = window.BG && window.BG[s.bg]; const i = D.segs.indexOf(s); const dir = i % 2 ? 1 : -1;
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#111'; ctx.fillRect(0, 0, W, H);
-  const hh = handheld(t, 2.5), z = 1.04 + lt * .022, px = dir * (8 + lt * 9);
-  if (img && img.naturalWidth) { ctx.save(); ctx.translate(540 + px + hh[0], 960 + hh[1]); ctx.scale(z, z); ctx.drawImage(img, -540, -960, 1080, 1920); ctx.restore(); }
+  const hh = handheld(t, 2.5), fo = fxBefore(s, lt, t), z = 1.04 + lt * .022 + fo.z, px = dir * (8 + lt * 9) + fo.x;
+  if (img && img.naturalWidth) { ctx.save(); ctx.translate(540 + px + hh[0], 960 + hh[1] + fo.y); ctx.rotate(fo.r); ctx.scale(z + Math.abs(fo.r) * 2, z + Math.abs(fo.r) * 2); ctx.drawImage(img, -540, -960, 1080, 1920); ctx.restore(); }
   else { (SETUPS[s.base] || SETUPS.talk)(ctx, lt, t, s); return; }
   // ground shadow band so the characters sit in the picture
   const g = ctx.createLinearGradient(0, H * .72, 0, H); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.35)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   const cam = { x: 540 + px * .3, y: 960, z: 1 + lt * .012 }; applyCam(ctx, cam, 1);
-  const tk = talkingAt(s, t), base = s.base || 'talk', ghostSpeaks = /ghost/i.test(s.speaker || '');
+  const tk = talkingAt(s, t), ghostSpeaks = /ghost/i.test(s.speaker || ''), fx = s.fx || [];
+  let base = s.base || 'talk'; if (fx.includes('run') && !['closeup', 'impact'].includes(base)) base = 'run'; else if (fx.includes('walk') && !['closeup', 'impact'].includes(base)) base = 'walk';
+  const jump = fx.includes('jump') ? -Math.abs(Math.sin(t * 5.2)) * 120 : 0; ctx.translate(0, jump);
   const gesture = tk ? { L: [.3, -.1], R: [1.2 + Math.sin(t * 5) * .2, -.6] } : POSE.idle.arms;
   if (ghostSpeaks && cast.ghostIdx != null) {
     const gy = 1500 + Math.sin(t * 2) * 14; ctx.save(); ctx.globalAlpha = .62; ctx.shadowColor = '#5dff9a'; ctx.shadowBlur = 60;
@@ -243,8 +299,8 @@ SETUPS.aibg = function (ctx, lt, t, s) {
   } else {
     stickA(ctx, C(cast(s.who), { x: i % 3 == 0 ? 540 : (i % 3 == 1 ? 340 : 740), y: 1770, s: 580, flip: i % 3 == 2 ? -1 : 1, bob: Math.sin(t * 3) * .006, face: face(s.mood, tk, t), arms: gesture }));
   }
-  // the reference videos' overlays on top of the picture
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  // the script's animation cues, then the reference videos' overlays on top of the picture
+  ctx.setTransform(1, 0, 0, 1, 0, 0); fxAfter(ctx, s, lt, t);
   if (base == 'impact') { const k = easeOut(clamp(lt / .3)); burst(ctx, 640, 1000, 300 * k, 12, '#ffd23a', 5); if (s.label) text(ctx, s.label.toUpperCase().slice(0, 10), 640, 1000, 110 * k, '#fff', INK, 16); if (lt < .1) darkness(ctx, .4 * (1 - lt / .1), '#fff'); }
   if (base == 'reveal' || base == 'treasuremap') { const sa = kf(lt, [[.3, 0], [.5, 1], [1.2, .2]]); sparkle(ctx, 620, 1100, 90 * sa, sa); sparkle(ctx, 820, 1020, 60 * sa, sa); }
   if (base == 'bigtext' && (s.label || s.hl)) { const k = backOut(clamp(lt / .35)), word = (s.label || s.hl).toUpperCase().slice(0, 12); ctx.font = '700 200px Poppins'; const fs = Math.min(200, 200 * 860 / Math.max(1, ctx.measureText(word).width)); ctx.save(); ctx.translate(540, 900); ctx.rotate(-.04); ctx.scale(k, k); text(ctx, word, 0, 0, fs, '#ffd23a', INK, Math.max(10, fs * .09)); ctx.restore(); }

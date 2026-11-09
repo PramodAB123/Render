@@ -112,3 +112,63 @@ SFX_HINTS = {"wave": "water", "ocean": "water", "wind": "wind", "creak": "creak"
 def sfx_tags(text):
     t = str(text or "").lower()
     return sorted({v for k, v in SFX_HINTS.items() if k in t})
+
+
+# ---------------- accurate pictures + animation cues from the Visual / Animation text ('ai' mode) ----------------
+PLACES = [  # (keywords, what the background must show) - most specific first; scenes with no place keep the last one
+    (("storm", "huge waves", "lightning"), "a pirate ship in a violent storm at sea, huge dark waves, lightning, heavy rain"),
+    (("treasure map", "wooden table", "cabin"), "a captain's cabin on a ship, an old treasure map spread on a wooden table, candle light"),
+    (("trap", "spikes", "pressure plate", "blades"), "inside an ancient temple corridor, stone floor tiles, spikes and swinging blades, red warning glow"),
+    (("temple", "stone door", "skull symbol"), "an ancient stone temple entrance, giant carved stone door with a skull symbol, glowing writings"),
+    (("treasure chest", "golden platform"), "a treasure chamber, a huge treasure chest on a golden platform, piles of gold coins and diamonds, light rays"),
+    (("swamp",), "a murky jungle swamp, twisted roots, green mist"),
+    (("jungle", "forest", "trees"), "a dark dense jungle path, giant leaves, vines, mist"),
+    (("island", "shore", "beach"), "a mysterious tropical island rising out of fog, mountains and jungle, calm sea"),
+    (("deck", "ship", "sailing", "boat"), "the wooden deck of an old pirate ship at sea, sails and ropes, ocean horizon"),
+    (("graveyard", "cemetery", "grave"), "a foggy graveyard at night, crooked tombstones, dead trees, full moon"),
+    (("throne", "castle", "kingdom"), "a grand medieval castle hall, stone pillars, banners, a throne"),
+    (("battlefield", "armies"), "a wide medieval battlefield, banners, smoke, distant castle"),
+    (("forge", "blacksmith"), "a blacksmith forge, glowing fire, anvil, hammers"),
+    (("bedroom", "hallway", "kitchen", "house", "living room"), "inside an old house, a dim hallway, wooden floor, a window"),
+    (("street", "city", "town"), "an old town street, houses, lamps"),
+    (("space", "planet", "galaxy"), "deep space, a giant planet, stars and a glowing nebula"),
+    (("laboratory", "lab "), "a science laboratory, glowing screens, glass tubes"),
+    (("desert",), "a vast desert, sand dunes, blazing sun"), (("mountain",), "dramatic mountains, cliffs, clouds"),
+    (("sea", "ocean", "waves"), "an open ocean, rolling waves, wide sky"),
+]
+LIGHT = [(("night", "dark", "moon"), "night, moonlight, deep blue shadows"), (("dawn", "sunrise"), "sunrise, warm golden light"),
+         (("sunset", "dusk"), "sunset, orange sky"), (("green smoke", "ghost"), "eerie green glow, smoke"),
+         (("fire", "flames"), "orange firelight"), (("blue light",), "mysterious blue light"), (("golden", "gold"), "golden glow")]
+PROPS = ["treasure map", "red x", "treasure chest", "gold coins", "diamonds", "skull", "sword", "crystal", "lantern", "candle", "rope",
+         "cannon", "anchor", "coconut", "tentacle", "bones", "stone door", "spikes", "blades", "fog", "lightning", "rain", "fire"]
+
+
+def place_prompt(scene, prev=None, names=()):
+    """A short picture prompt the image model follows: WHERE first, then light, then key props (it reads ~70 words max).
+    People are drawn by the animation, so names and actions are left out of the picture."""
+    v = (scene.get("title", "") + " " + scene.get("visual", "")).lower().replace("storm disappears", "clear sky").replace("storm clears", "clear sky")
+    for n in names:
+        v = v.replace(n.lower(), "")
+    # a daydream ("imagining", "thought bubble") or a crowd of skeletons doesn't move the scene somewhere new
+    v_place = re.split(r"imagin|thought bubble|dream", v)[0]
+    hits = [(min(v_place.find(k) for k in keys if k in v_place), i, p) for i, (keys, p) in enumerate(PLACES) if any(k in v_place for k in keys)]
+    place = (min(hits)[2] if hits else None) or prev or "a wide cinematic landscape"   # the place the scene mentions first
+    light = [l for keys, l in LIGHT if any(k in v for k in keys)][:2]
+    props = [p for p in PROPS if p in v and p not in place][:4]
+    return ", ".join([place] + light + props), place
+
+
+FX = [  # Animation/Visual words -> effects drawn on top of the picture
+    (("rain",), "rain"), (("lightning", "thunder"), "lightning"), (("shake", "tilts", "explosion", "explodes", "impact", "rumble"), "shake"),
+    (("zoom",), "zoom"), (("fog", "mist"), "fog"), (("glowing eyes", "eyes blink", "eyes appear"), "eyes"),
+    (("sparkle", "particles", "glow", "magical", "light rays"), "sparkle"), (("coins",), "coins"), (("fire", "flames"), "fire"),
+    (("green smoke", "smoke"), "smoke"), (("tilts", "rocking", "waves hit"), "tilt"), (("jump", "jumps"), "jump"),
+    (("sword", "clash", "slash", "strike", "fight", "attack"), "clash"), (("explosion", "explodes", "shatter", "blast"), "boom"),
+    (("dust", "stones move"), "dust"), (("pan", "pans"), "pan"), (("slow motion", "slow-motion"), "slowmo"),
+    (("thought bubble", "imagining"), "bubble"), (("arrow",), "arrow"), (("walk", "walking"), "walk"), (("run", "running", "charges"), "run"),
+]
+
+
+def fx_tags(text):
+    t = str(text or "").lower()
+    return sorted({f for keys, f in FX if any(k in t for k in keys)})
