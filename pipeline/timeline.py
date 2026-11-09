@@ -127,6 +127,9 @@ def music_and_mix(d, out_mp4, g, doc=False, scenes=False):
          f"[3]aformat=channel_layouts=stereo[fx];[voice][duck][fx]amix=inputs=3:normalize=0,alimiter=limit=0.95,atrim=0:{tl['total']}[a]")
     subprocess.run([FFMPEG, "-v", "error", "-y", "-i", os.path.join(d, "video.mp4"), "-i", os.path.join(d, "voice.wav"),
                     "-i", os.path.join(d, "music.wav"), "-i", os.path.join(d, "sfx.wav"), "-filter_complex", f,
-                    "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest",
+                    # final encode at a YouTube-friendly bitrate: the renderers write near-lossless video (the stick engine
+                    # ~23 Mbit/s with film grain), which made a 3-minute video ~550 MB; this keeps it at ~2-6 Mbit/s
+                    "-map", "0:v", "-map", "[a]", "-c:v", "libx264", "-preset", "medium", "-crf", "23", "-maxrate", "6M",
+                    "-bufsize", "12M", "-pix_fmt", "yuv420p", "-color_range", "tv", "-c:a", "aac", "-b:a", "160k", "-shortest",
                     "-movflags", "+faststart", out_mp4], check=True)
     print("  wrote", out_mp4)
