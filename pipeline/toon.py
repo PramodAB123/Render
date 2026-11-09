@@ -183,6 +183,13 @@ def render(sc, tl, d, g, size=(1080, 1920), preview=False):
     toon = {"size": list(size), "segs": tl["segs"], "total": tl["total"], "cast": sc["cast"], "hud": sc["hud"], "choice": sc["choice"],
             "style": {"accent": "#e0262f" if g["name"] in ("horror", "mystery") else accent, "hl": hl}}
     json.dump(toon, open(os.path.join(d, "toon.json"), "w", encoding="utf-8"), indent=1, ensure_ascii=False)
+    import hf
+    if not preview and hf.available():   # HyperFrames captures the frames (parallel, deterministic); our own loop is the fallback
+        try:
+            hf.render(hf.toon_project(os.path.join(d, "hf"), toon, size), os.path.join(d, "video.mp4"))
+            return
+        except Exception as e:
+            print(f"  HyperFrames render failed ({str(e)[:200]}); using the built-in renderer")
     env = dict(os.environ, NODE_PATH=str(ROOT / "node_modules"))
     args = ["node", str(ROOT / "toon" / "render.js"), d] + (["preview", "1", "5", "9", str(tl["total"] - 1)] if preview else [])
     subprocess.run(args, check=True, env=env)

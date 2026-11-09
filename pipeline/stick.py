@@ -234,6 +234,27 @@ def from_screenplay(g, text):
             "lines": lines, "cast": cast, "hindi": hindi}
 
 
+def _render_segments(tl, work, env, out):
+    # like the skill's make.sh: render the shots in parallel workers, then join them
+    shots = _count_shots(tl)
+    workers = max(1, min(int(os.environ.get("WORKERS", os.cpu_count() or 4)), 8, shots))
+    procs = []
+    os.makedirs(os.path.join(work, "seg"), exist_ok=True)
+    for w in range(workers):
+        ids = ",".join(str(i) for i in range(w, shots, workers))
+        if ids:
+            procs.append(subprocess.Popen(["node", str(ENGINE / "tools" / "render.js"), "segments", ids], cwd=work, env=env,
+                                          stdout=open(os.path.join(work, "seg", f"log{w}.txt"), "w"), stderr=subprocess.STDOUT))
+    print(f"  rendering {shots} shots with {workers} workers (stick-figure skill make.sh)")
+    if any(p.wait() for p in procs):
+        raise SystemExit("A stick shot failed to render; see the seg/log*.txt files in the work folder.")
+    segs = sorted((f for f in os.listdir(os.path.join(work, "seg")) if re.fullmatch(r"shot_\d+\.mp4", f)), key=lambda f: int(re.findall(r"\d+", f)[0]))
+    if len(segs) != shots:
+        raise SystemExit(f"Only {len(segs)} of {shots} stick shots rendered.")
+    open(os.path.join(work, "seg", "list.txt"), "w").writelines(f"file '{f}'\n" for f in segs)
+    subprocess.run([FFMPEG, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", "list.txt", "-c", "copy", out], check=True, cwd=os.path.join(work, "seg"))
+
+
 def _count_shots(tl):
     """Same rule as stick/auto_shots.js: a line longer than 4.2 s becomes two shots (the skill keeps shots 2-4 s)."""
     n = 0
@@ -279,24 +300,15 @@ def render(sc, tl, d, g, size=(1080, 1920)):
     if os.environ.get("STICK_CHROME"):
         env["CHROME"] = os.environ["STICK_CHROME"]
     out = os.path.join(work, "silent.mp4")
-    # like the skill's make.sh: render the shots in parallel workers, then join them
-    shots = _count_shots(tl)
-    workers = max(1, min(int(os.environ.get("WORKERS", os.cpu_count() or 4)), 8, shots))
-    procs = []
-    os.makedirs(os.path.join(work, "seg"), exist_ok=True)
-    for w in range(workers):
-        ids = ",".join(str(i) for i in range(w, shots, workers))
-        if ids:
-            procs.append(subprocess.Popen(["node", str(ENGINE / "tools" / "render.js"), "segments", ids], cwd=work, env=env,
-                                          stdout=open(os.path.join(work, "seg", f"log{w}.txt"), "w"), stderr=subprocess.STDOUT))
-    print(f"  rendering {shots} shots with {workers} workers (stick-figure skill make.sh)")
-    if any(p.wait() for p in procs):
-        raise SystemExit("A stick shot failed to render; see the seg/log*.txt files in the work folder.")
-    segs = sorted((f for f in os.listdir(os.path.join(work, "seg")) if re.fullmatch(r"shot_\d+\.mp4", f)), key=lambda f: int(re.findall(r"\d+", f)[0]))
-    if len(segs) != shots:
-        raise SystemExit(f"Only {len(segs)} of {shots} stick shots rendered.")
-    open(os.path.join(work, "seg", "list.txt"), "w").writelines(f"file '{f}'\n" for f in segs)
-    subprocess.run([FFMPEG, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", "list.txt", "-c", "copy", out], check=True, cwd=os.path.join(work, "seg"))
+    import hf
+    done = False
+    if hf.available():   # HyperFrames captures the frames from the engine's renderFrame() via its seek protocol
+        try:
+            hf.render(hf.stick_project(web, tl["total"]), out); done = True
+        except Exception as e:
+            print(f"  HyperFrames render failed ({str(e)[:200]}); using the skill's parallel workers")
+    if not done:
+        _render_segments(tl, work, env, out)
     W, H = size
     if W > H:   # the engine draws 9:16; for landscape put it on a blurred, widened copy of itself
         subprocess.run([FFMPEG, "-v", "error", "-y", "-i", out, "-filter_complex",

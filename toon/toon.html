@@ -129,25 +129,25 @@ let MT = null, A = [], CAPS = [], FX = { shake: 0, flash: 0 };
 function chunksOf(s) {   // 1-2 words per caption (stick-figure skill rule), exact word times from the voice
   const ws = (s.words && s.words.length) ? s.words : s.text.split(/\s+/).map((w, k, a) => ({ w, s: s.start + k * s.dur / a.length })); const out = [];
   for (let k = 0; k < ws.length;) { const two = ws[k + 1] && (ws[k].w + ' ' + ws[k + 1].w).length <= 13 && !/[.!?,]$/.test(ws[k].w); const grp = ws.slice(k, k + (two ? 2 : 1));
-    out.push({ words: grp.map(x => x.w), t0: grp[0].s, sc: 0.55, a: 0, y: 40, burst: 0 }); k += grp.length; }
+    out.push({ words: grp.map(x => x.w), t0: grp[0].s, sc: 0.55, a: 0, y: 40, burst: 0, blur: 0, ink: 1 }); k += grp.length; }
   return out; }
 function buildMotion() {
   const g = window.gsap; MT = g.timeline({ paused: true }); A = []; CAPS = [];
-  const TR = ['whip', 'whip', 'zoom', 'whip', 'iris', 'wipe', 'whip', 'slide'];
+  const TR = ['whip', 'dip', 'zoom', 'whip', 'iris', 'dip', 'wipe', 'whip'];   // 3-5 kinds, at most a third plain cuts (HyperFrames motion.md)
   TL.segs.forEach((s, i) => { const st = s.start, d = s.dur, a = { cam: 1.12, camX: 0, rot: -0.015, charIn: 0, squash: 1.18, wipe: 0, tr: TR[i % TR.length],
     chips: [0, 0, 0], card: 0, ticks: [0, 0, 0, 0], mapP: 0, pin: 0, msg: 0, type: 0, stat: 0, btn: [0, 0], vote: 0, q: 0 };
     A.push(a);
     // camera: punch in on the cut, then a slow drift for the rest of the line
     MT.to(a, { cam: 1.0, rot: 0, duration: 0.7, ease: 'expo.out' }, st);
-    MT.to(a, { cam: 0.965, camX: (i % 2 ? 1 : -1) * 18, duration: Math.max(0.5, d - 0.4), ease: 'sine.inOut' }, st + 0.7);
+    MT.to(a, { cam: 0.985, camX: (i % 2 ? 1 : -1) * 14, duration: Math.max(0.5, d - 0.4), ease: 'power2.inOut' }, st + 0.7);   // gentle, no creeping push
     if (s.shot == 'graph') { a.gp = 0; MT.to(a, { gp: 1, duration: Math.max(1, d * 0.75), ease: 'power2.inOut' }, st + 0.2); }
     // character pops in with a squash-and-stretch on every new shot
     MT.to(a, { charIn: 1, duration: 0.55, ease: 'back.out(1.8)' }, st);
     MT.to(a, { squash: 1, duration: 0.9, ease: 'elastic.out(1, 0.45)' }, st);
     // scene transition out of the previous shot (wipe / zoom / slide / iris)
-    if (i > 0 && (TL.segs[i - 1].shot !== s.shot || TL.segs[i - 1].place !== s.place)) MT.fromTo(a, { wipe: 1 }, { wipe: 0, duration: a.tr == 'whip' ? 0.34 : 0.45, ease: 'power3.out', immediateRender: false }, Math.max(0, st - 0.12));
-    if (s.shot == 'chips') a.chips.forEach((_, k) => MT.to(a.chips, { [k]: 1, duration: 0.5, ease: 'back.out(2)' }, st + 0.2 + k * 0.35));
-    if (s.shot == 'checklist') { MT.to(a, { card: 1, duration: 0.6, ease: 'back.out(1.6)' }, st);
+    if (i > 0 && (TL.segs[i - 1].shot !== s.shot || TL.segs[i - 1].place !== s.place)) MT.fromTo(a, { wipe: 1 }, { wipe: 0, duration: a.tr == 'whip' ? 0.26 : a.tr == 'dip' ? 0.1 : 0.45, ease: a.tr == 'dip' ? 'none' : 'power3.out', immediateRender: false }, Math.max(0, st - 0.12));
+    if (s.shot == 'chips') a.chips.forEach((_, k) => MT.to(a.chips, { [k]: 1, duration: 0.5, ease: 'back.out(1.4)' }, st + 0.2 + k * 0.08));
+    if (s.shot == 'checklist') { MT.to(a, { card: 1, duration: 0.6, ease: 'expo.out' }, st);
       a.ticks.forEach((_, k) => { if (k < ((s.data && s.data.checked) ?? 1)) MT.to(a.ticks, { [k]: 1, duration: 0.35, ease: 'back.out(3)' }, st + 0.7 + k * 0.5); }); }
     if (s.shot == 'map') { MT.to(a, { mapP: 1, duration: Math.max(0.8, d * 0.7), ease: 'power2.inOut' }, st + 0.15); MT.to(a, { pin: 1, duration: 0.8, ease: 'elastic.out(1, 0.4)' }, st + Math.max(0.8, d * 0.7)); }
     if (s.shot == 'message') { MT.to(a, { msg: 1, duration: 0.5, ease: 'back.out(1.7)' }, st + 0.15); MT.to(a, { type: 1, duration: Math.max(0.6, d * 0.65), ease: 'none' }, st + 0.4); }
@@ -156,7 +156,10 @@ function buildMotion() {
     // captions: each 3-word chunk springs in; a keyword in the chunk kicks the camera
     const hl = (s.hl || []).map(w => w.toUpperCase().replace(/[^A-Z0-9']/g, ''));
     const cs = chunksOf(s); CAPS.push(cs);
-    cs.forEach(c => { MT.to(c, { sc: 1, a: 1, y: 0, duration: 0.28, ease: 'back.out(2.6)' }, c.t0);
+    const entry = ['pop', 'blur', 'ink'][i % 3];   // vary the entrance within a film, never one move for every line
+    cs.forEach(c => { if (entry == 'blur') MT.fromTo(c, { sc: 1, y: 0, a: 0, blur: 6 }, { a: 1, blur: 0, duration: 0.13, ease: 'power2.out', immediateRender: false }, c.t0);
+      else if (entry == 'ink') MT.fromTo(c, { sc: 1, y: 0, a: 1, ink: 0 }, { ink: 1, duration: 0.1, ease: 'none', immediateRender: false }, c.t0);
+      else MT.to(c, { sc: 1, a: 1, y: 0, duration: 0.28, ease: 'back.out(1.7)' }, c.t0);
       // an impact (stick-figure skill rule): a burst, a shake and a flash on the keyword
       if (c.words.some(w => hl.includes(w.toUpperCase().replace(/[^A-Z0-9']/g, '')))) { c.hit = true; MT.fromTo(FX, { shake: 1 }, { shake: 0, duration: 0.45, ease: 'power2.out', immediateRender: false }, c.t0 + 0.03);
         MT.fromTo(c, { burst: 0 }, { burst: 1, duration: 0.5, ease: 'expo.out', immediateRender: false }, c.t0);
@@ -179,12 +182,12 @@ function caption(t, g) { const s = g.s; if (!s || s.shot == 'choice') return; co
   const line = c.words.join(' ').toUpperCase().replace(/[—–]/g, ' '); const cy = (LAND ? H * 0.8 : H * 0.585);
   if (c.hit && c.burst > 0.01 && c.burst < 0.99) { X.save(); X.translate(W / 2, cy); X.strokeStyle = TL.style.hl; X.lineCap = 'round'; X.globalAlpha = 1 - c.burst;
     for (let r = 0; r < 14; r++) { const an = r / 14 * Math.PI * 2, r0 = 160 + 260 * c.burst, r1 = r0 + 90 * (1 - c.burst); X.lineWidth = 14 * (1 - c.burst) + 2; X.beginPath(); X.moveTo(Math.cos(an) * r0 * 1.6, Math.sin(an) * r0 * 0.8); X.lineTo(Math.cos(an) * r1 * 1.6, Math.sin(an) * r1 * 0.8); X.stroke(); } X.restore(); }
-  X.save(); X.globalAlpha = clamp(c.a, 0, 1); X.translate(W / 2, (LAND ? H * 0.8 : H * 0.585) + c.y); X.scale(c.sc, c.sc);
+  X.save(); X.globalAlpha = clamp(c.a, 0, 1); if (c.blur > .05) X.filter = `blur(${c.blur.toFixed(1)}px)`; X.translate(W / 2, (LAND ? H * 0.8 : H * 0.585) + c.y); X.scale(c.sc, c.sc);
   const size = fit(line, W - 140, 118); X.font = `${size}px ${F}`; let x = -X.measureText(line).width / 2;
   for (const w of c.words) { const up = w.toUpperCase(), ww = X.measureText(up + ' ').width, on = hl.includes(up.replace(/[^A-Z0-9']/g, ''));
     X.lineWidth = 16; X.strokeStyle = 'rgba(0,0,0,.9)'; X.textAlign = 'left'; X.textBaseline = 'middle'; X.strokeText(up, x, 0);
     if (on) { const bw = X.measureText(up).width; X.save(); X.translate(x + bw / 2, 0); X.rotate(-0.035); rr(-bw / 2 - 12, -size * 0.5, bw + 24, size * 0.95, 10, TL.style.accent); X.restore(); }
-    X.fillStyle = '#fff'; X.fillText(up, x, 0); x += ww; }
+    X.fillStyle = c.ink < 1 ? mix('#8a8f99', '#ffffff', c.ink) : '#fff'; X.fillText(up, x, 0); x += ww; }
   X.restore(); }
 function chipsShot(t, a, items) { items.forEach((it, i) => { const p = a.chips[i] || 0; if (p <= 0.001) return;
   const y = H * 0.36 + i * 120, x = W / 2 - (1 - p) * 240; X.save(); X.globalAlpha = clamp(p, 0, 1); X.translate(x, y); X.scale(clamp(p, 0, 1.3), clamp(p, 0, 1.3));
@@ -237,6 +240,7 @@ function transition(a) { if (a.wipe <= 0.001) return; const p = a.wipe; X.fillSt
   if (a.tr == 'wipe') { X.beginPath(); X.moveTo(W * (1 - p) * 1.6 - W * 0.3, 0); X.lineTo(W * 1.4, 0); X.lineTo(W * 1.4, H); X.lineTo(W * (1 - p) * 1.6 - W * 0.6, H); X.fill(); X.fillStyle = '#0b0d14'; X.beginPath(); X.moveTo(W * (1 - p) * 1.6 - W * 0.15, 0); X.lineTo(W * 1.4, 0); X.lineTo(W * 1.4, H); X.lineTo(W * (1 - p) * 1.6 - W * 0.45, H); X.fill(); }
   else if (a.tr == 'slide') { X.fillStyle = '#0b0d14'; X.fillRect(0, 0, W, H * p * 0.5); X.fillRect(0, H - H * p * 0.5, W, H * p * 0.5); }
   else if (a.tr == 'iris') { X.save(); X.beginPath(); X.rect(0, 0, W, H); X.arc(W / 2, H * 0.5, Math.max(1, (1 - p) * H), 0, Math.PI * 2, true); X.fillStyle = '#05060a'; X.fill('evenodd'); X.restore(); }
+  else if (a.tr == 'dip') { X.fillStyle = `rgba(0,0,0,${0.4 * p})`; X.fillRect(0, 0, W, H); }   // dip cut: darken ~40% for 3 frames
   else { X.fillStyle = `rgba(255,255,255,${0.5 * p})`; X.fillRect(0, 0, W, H); } }
 
 

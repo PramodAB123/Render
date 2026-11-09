@@ -8,3 +8,4 @@
 - **three.js** (MIT), **Playwright** (Apache-2.0), **FFmpeg** (LGPL/GPL), **edge-tts** (LGPL-3.0)
 - Fonts: Bebas Neue, Inter, Inter Tight, Poppins (SIL Open Font License 1.1)
 - AI images: Lykon/dreamshaper-8-lcm (CreativeML OpenRAIL-M)
+- **HyperFrames** by HeyGen (Apache-2.0): https://github.com/heygen-com/hyperframes - renders the frames of the 2d and stick engines (seek protocol); its motion rules guide the 2d animation. Telemetry is disabled.
