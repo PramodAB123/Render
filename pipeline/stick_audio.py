@@ -79,18 +79,49 @@ def score(segs, total, genre):
         steps = [38, 38, 41, 40, 39, 38, 36, 37]; t, i = t0, 0
         while t < t1 - .05:
             place(reed(steps[i % 8] + 12, .2, .8), t, g); place(pizz(steps[i % 8], .35, .6), t, g); t += BEAT; i += 1
-    dark_genre = genre in ("horror", "mystery")
+    def pulse(t0, t1, g=1.0, root=38):          # action: driving low pulse + stabs
+        t = t0
+        while t < t1 - .05:
+            for b in range(4):
+                place(pizz(root, .22, .9), t + b * BEAT * .5, g); place(pizz(root + 12, .18, .5), t + b * BEAT * .5 + BEAT * .25, g)
+            place(strings((root + 12, root + 15, root + 19), min(BEAT * 2, t1 - t), .35), t, g); t += 2 * BEAT
+    def drone(t0, t1, g=1.0):                    # horror: low dissonant drone + high glass notes
+        place(strings((37, 38, 44), max(.6, t1 - t0), .45), t0, g); t = t0 + 1.2
+        while t < t1 - .3:
+            place(glock(86 + int(rng.integers(0, 3)), 1.4, .18), t, g); t += 2.3
+    def magic(t0, t1, g=1.0):                    # wonder: glockenspiel arpeggios over soft strings
+        place(strings((62, 66, 69), max(.6, t1 - t0), .25), t0, g); t, i = t0, 0
+        while t < t1 - .1:
+            place(glock([74, 78, 81, 86, 81, 78][i % 6], .9, .3), t, g); t += BEAT * .5; i += 1
+    def slow(t0, t1, chords, g=1.0):             # sad / epic: long string chords
+        t, i = t0, 0
+        while t < t1 - .1:
+            du = min(BEAT * 4, t1 - t); place(strings(chords[i % len(chords)], max(.6, du), .45), t, g); t += BEAT * 4; i += 1
+    fallback = "horror" if genre == "horror" else "tense" if genre == "mystery" else None
+    def feel(s):
+        return s.get("music") or ("tense" if s.get("setup") in TENSE else None) or fallback or "playful"
     k = 0
     while k < len(segs):   # group neighbouring scenes of the same feel into one musical passage
-        tense = (segs[k].get("setup") in TENSE) or dark_genre; j = k
-        while j + 1 < len(segs) and ((segs[j + 1].get("setup") in TENSE) or dark_genre) == tense:
+        f = feel(segs[k]); j = k
+        while j + 1 < len(segs) and feel(segs[j + 1]) == f:
             j += 1
         t0 = 0 if k == 0 else segs[k]["start"]; t1 = segs[j + 1]["start"] if j + 1 < len(segs) else total
-        if tense:
+        if f == "tense":
             sneak(t0, t1, .8); place(strings((50, 56, 62), min(4, t1 - t0), .25), t0)
+        elif f == "horror":
+            drone(t0, t1, .9); place(strings((49, 50, 56, 62), 1.6, .55), t0)      # sting as the scene starts
+        elif f == "action":
+            pulse(t0, t1, .85)
+        elif f == "magic":
+            magic(t0, t1, .85)
+        elif f == "sad":
+            slow(t0, t1, [(50, 53, 57), (46, 50, 53), (43, 46, 50), (45, 49, 52)], .8)
+        elif f == "epic":
+            slow(t0, t1, [(50, 57, 62, 66), (47, 54, 59, 62), (43, 50, 55, 59), (45, 52, 57, 61)], .9); pulse(t0, t1, .35)
         else:
             playful(t0, t1, DM if (k // 3) % 2 == 0 else DMAJ, .8, glock_on=k > 0)
         k = j + 1
+    print("  music from the script: " + " > ".join(dict.fromkeys(feel(s) for s in segs)), flush=True)
     for (bt, m) in MOTIF:                                   # little sparkle on the hook
         place(glock(m, 1.0, .3), .4 + bt * BEAT * .5)
     for s in segs:

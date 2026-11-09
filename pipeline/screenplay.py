@@ -36,7 +36,7 @@ def parse(text):
         title = re.sub(r"\s+", " ", hm.group(1)).strip(" :") if hm else ""
         rest = chunk[hm.end():] if hm else chunk   # the heading is not part of anyone's name
         visual = " ".join(x for x in (_field(rest, "Visual"), _field(rest, "Animation")) if x)
-        sfx = _field(rest, "SFX") or _field(rest, "Sound")
+        sfx = _field(rest, "SFX") or _field(rest, "Sound"); music = _field(rest, "Music")
         speech = []
         body = re.sub(r"(Visual|Animation|SFX|Sound|Camera)\s*:\s*[^\"]*?(?=(Narrator|Narration|Dialogue)\b|[A-Z][\w ]{0,25}(?:\([^)]*\))?\s*:\s*\"|$)", " ", rest, flags=re.I)
         body = re.sub(r"Dialogue\s*[–—-]\s*", "", body, flags=re.I)
@@ -47,7 +47,7 @@ def parse(text):
                 continue
             speech.append({"speaker": "narrator" if sp.lower() in ("narrator", "narration") else sp, "say": line, "tone": (m.group(2) or "").lower()})
         if speech or visual:
-            scenes.append({"title": title, "visual": visual, "sfx": sfx, "speech": speech})
+            scenes.append({"title": title, "visual": visual, "sfx": sfx, "music": music, "speech": speech})
     lines = [dict(s, scene=k) for k, sc in enumerate(scenes) for s in sc["speech"]]
     return scenes, lines
 
@@ -172,3 +172,52 @@ FX = [  # Animation/Visual words -> effects drawn on top of the picture
 def fx_tags(text):
     t = str(text or "").lower()
     return sorted({f for keys, f in FX if any(k in t for k in keys)})
+
+
+# ---------------- music for each scene, read from the script (Music:/SFX: notes, then the scene's own words) ----------------
+FEELS = [  # checked in order; first hit wins
+    ("horror", ("horror sting", "villain", "ghost", "scream", "eerie", "spooky", "curse", "creepy", "haunted", "dead", "skull", "green smoke", "भूत")),
+    ("action", ("battle", "fight", "clash", "attack", "sword", "charges", "monster", "explosion", "explodes", "strike", "chase", "storm", "lightning", "trap")),
+    ("tense", ("dark", "whisper", "footsteps", "mysterious", "glowing eyes", "shadow", "danger", "suspense", "sneak", "night", "fog")),
+    ("magic", ("magical", "sparkle", "glow", "treasure", "gold", "crystal", "reveal", "chime", "diamond", "wonder")),
+    ("sad", ("sad", "cry", "tears", "lonely", "loss", "funeral", "goodbye", "rain alone")),
+    ("epic", ("epic", "cinematic", "hero", "victory", "army", "kingdom", "mountain", "sunrise", "triumph")),
+    ("playful", ("happy", "funny", "comedic", "cartoon", "laugh", "celebrate", "jump", "excited", "silly", "party", "coins")),
+]
+
+
+def music_feel(scene_or_text):
+    """The script decides the music: an explicit Music:/SFX: note wins, then what the scene shows."""
+    if isinstance(scene_or_text, dict):
+        notes = (scene_or_text.get("music", "") + " " + scene_or_text.get("sfx", "")).lower()
+        body = (scene_or_text.get("title", "") + " " + scene_or_text.get("visual", "")).lower()
+    else:
+        notes, body = "", str(scene_or_text or "").lower()
+    for text in (notes, body):
+        # "happy music switches to horror sting": the LAST feel named is where the scene ends up
+        hits = [(max(text.rfind(k) for k in keys), name) for name, keys in FEELS if any(k in text for k in keys)]
+        if hits:
+            return max(hits)[1]
+    return None
+
+
+def _has(text, k):
+    return re.search(r"(?<![a-z])" + re.escape(k) + r"(?![a-z])", text) is not None
+
+
+def music_feel(scene_or_text):   # noqa: F811  (replaces the version above)
+    """The script decides the music: an explicit Music:/SFX: note wins, then what the scene shows.
+    Feels are checked in FEELS order (horror > action > tense > ...); "X switches to Y" ends on Y."""
+    if isinstance(scene_or_text, dict):
+        notes = (scene_or_text.get("music", "") + " " + scene_or_text.get("sfx", "")).lower()
+        body = (scene_or_text.get("title", "") + " " + scene_or_text.get("visual", "")).lower()
+    else:
+        notes, body = "", str(scene_or_text or "").lower()
+    for text in (notes, body):
+        m = re.search(r"(?:switch(?:es)?|turns?|changes?) (?:in)?to (.*)", text)
+        if m:
+            text = m.group(1)
+        for name, keys in FEELS:
+            if any(_has(text, k) for k in keys):
+                return name
+    return None

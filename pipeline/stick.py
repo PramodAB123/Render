@@ -211,7 +211,7 @@ def from_screenplay(g, text):
         lines.append({"say": l["say"], "speaker": l["speaker"], "setup": setup, "mood": mood, "who": who, "label": sp.LABEL.get(setup, ""),
                       "tod": tod, "ground": "sea" if setup in ("sea", "storm") else "floor" if setup in ("temple", "throne", "forge") else "grass",
                       "hl": "", "sfx": sp.sfx_tags(sc["sfx"]) if first else [], "scene_visual": sc["visual"], "scene_title": sc["title"], "image": prompts[l["scene"]], "scene": l["scene"],
-                      "fx": sp.fx_tags(sc["visual"])})
+                      "fx": sp.fx_tags(sc["visual"]), "music": sp.music_feel(sc)})
     # voices: Hindi scripts get the free Hindi Edge voices; each character a different pitch/speed so they sound distinct
     from toon import VOICES, MOOD
     tweaks = [("-6Hz", "-2%"), ("+10Hz", "+6%"), ("-1Hz", "+3%"), ("+5Hz", "-3%"), ("-10Hz", "+0%")]
@@ -290,6 +290,8 @@ def ai_backgrounds(tl, web, g):
         if len(made) >= cap:
             sg["bg"] = last; continue
         prompt = (sg.get("image") or sg.get("text") or "").strip()
+        if not sg.get("music"):
+            import screenplay as _sp; sg["music"] = _sp.music_feel(prompt + " " + str(sg.get("text", "")))
         if not sg.get("fx"):   # written stories: take the animation cues from the picture line too
             import screenplay as _sp; sg["fx"] = _sp.fx_tags(prompt + " " + str(sg.get("text", "")))
         out = os.path.join(web, "bg", f"bg{i}.png")
