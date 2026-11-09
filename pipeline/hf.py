@@ -10,7 +10,12 @@ HF_VERSION = "0.9.26"
 
 
 def available():
-    return (ROOT / "node_modules" / "hyperframes" / "package.json").exists()
+    """Opt-in only (RENDERER=hyperframes or config video.renderer). HyperFrames screenshots the whole page for every
+    frame: on GitHub's runners (no GPU) that measured ~2 s/frame, 109 min for a 110 s video, while the built-in
+    renderers read the canvas directly at ~0.1-0.3 s/frame. So the built-in renderers are the default."""
+    from common import load_config
+    want = os.environ.get("RENDERER") or load_config()["video"].get("renderer", "builtin")
+    return want == "hyperframes" and (ROOT / "node_modules" / "hyperframes" / "package.json").exists()
 
 
 def render(project_dir, out_mp4, fps=30):

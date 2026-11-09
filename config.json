@@ -25,7 +25,8 @@
       1080
     ],
     "long_caption_size": 60,
-    "crossfade": 0.8
+    "crossfade": 0.8,
+    "renderer": "builtin"
   },
   "youtube": {
     "privacy": "private",
