@@ -170,8 +170,11 @@ PEOPLE = [  # generic people words -> how they look
     (("stickman", "stick man", "person", "man", "woman", "boy", "girl", "character", "figure", "someone", "inventor", "worker", "teacher", "student", "kid",
       "engineer", "professor", "astronaut", "pilot", "driver", "chef", "farmer", "detective", "officer", "friend", "crowd"), {}),
 ]
+PERSON_NOUNS = ["salesperson", "salesman", "businessman", "scientist", "doctor", "researcher", "soldier", "knight", "archer", "warrior", "guard", "king", "queen",
+                "inventor", "worker", "teacher", "student", "kid", "boy", "girl", "woman", "man", "stickman", "person", "character", "figure", "astronaut", "pilot",
+                "chef", "farmer", "detective", "officer", "engineer", "professor", "old man", "elderly"]
 NUM = {"two": 2, "three": 3, "four": 4, "both": 2, "2": 2, "3": 3, "दो": 2}
-STEP_ACTIONS = [(("riding", "rides", "cycling"), "walk"), (("carrying", "carries", "holding", "holds"), "walk"), (("sitting", "sits", "seated"), "sit"),
+STEP_ACTIONS = [(("riding", "rides", "cycling"), "walk"), (("carrying", "carries"), "walk"), (("sitting", "sits", "seated"), "sit"),
                 (("typing", "working on", "discussing", "observing", "watching"), "look"), (("confused", "shocked", "surprised", "scared", "afraid"), "scared"),
                 (("smiling", "happy", "celebrat", "cheer"), "happy"), (("attempting to catch", "chasing", "chase", "catch"), "chase")]
 CAMS = [("extreme close", "ecu"), ("close-up", "closeup"), ("close up", "closeup"), ("zoom-out", "pull_back"), ("zoom out", "pull_back"), ("pull back", "pull_back"),
@@ -198,6 +201,8 @@ def plan_steps(ln, place, tod, roster, idx):
     known = {w.strip() for ws, _ in OBJECTS + STEP_PLACES + PLACES + PEOPLE for w in ws} | set(ACTORS) | {
         "room", "world", "environment", "interface", "information", "effect", "character", "stickman", "scientist", "scientists", "person", "brain",
         "body", "copy", "idea", "experiment", "activity", "nutrients", "oxygen", "air", "data", "message", "error", "notes", "charts", "chart", "detail",
+        "bullet", "bullets", "vest", "steel vest", "armor", "armour", "chain mail", "chainmail", "plate", "sword", "swords", "pistol", "gun", "arrow", "arrows", "bow",
+        "mace", "shield", "soldier", "knight", "archer", "warrior", "impact", "spark", "sparks", "slow-motion", "motion", "answer", "question",
         "shadows", "shadow", "representation", "version", "transition", "section", "signature", "benefits", "memory", "plans", "procedure", "grass", "trees", "tree"}
     designed = makers.design(beats, known)
     for k, b in enumerate(beats):
@@ -233,8 +238,20 @@ def plan_steps(ln, place, tod, roster, idx):
             if "another character" in t:
                 n = 1
             base = next((r for r in roster if r["type"] == "person"), {"name": "person", "type": "person"})
+            # different people named in one step ("a man in a steel vest ... a soldier holding a pistol") are different people
+            nouns = [(t.find(" " + w), w) for w in PERSON_NOUNS if re.search(r"(?<![a-z])" + w + r"(?![a-z])", t)]
+            nouns = [w for _, w in sorted(nouns)]
+            nouns = [w for i, w in enumerate(nouns) if not any(w != x and w in x for x in nouns)]   # 'man' inside 'salesman'
+            n = max(n, min(3, len(nouns)))
             for q in range(n):
-                people.append(dict(base, **look, name=f"{base['name']}{q}" if q else base["name"]))
+                noun = nouns[q] if q < len(nouns) else (nouns[0] if nouns else "")
+                i0 = t.find(noun) if noun else 0
+                near = t[max(0, i0 - 25): i0 + len(noun) + 45] if noun else t
+                own = {}
+                for ws, lk in PEOPLE:
+                    if any(world_has(near, w) for w in ws):
+                        own.update(lk)
+                people.append(dict(base, **(own if len(nouns) > 1 else look), name=f"{base['name']}{q}" if q else base["name"], noun=noun, near=near))
         if "robot" in t:
             people = [p for p in people if not (p.get("type") == "person" and "robot" in t and "character" in t)] + [{"name": "robot", "type": "robot"}]
         if not people and people_prev and not any(w in t for w in ("screen displays", "close-up of", "zoom into", "display a", "highlight")):

@@ -20,12 +20,12 @@ on:
         type: choice
         options: [portrait, landscape]
       mode:
-        description: "ai: AI-illustrated scenes + stick characters (reference style) | stick: drawn stick-figure scenes | 2d: flat cartoon | doc: documentary AI stills | cinema: 3D world built from the script (animals, people, places, camera angles)"
+        description: "ai: AI-illustrated scenes + stick characters (reference style) | stick: drawn stick-figure scenes | 2d: flat cartoon | doc: documentary AI stills | cinema: 3D world built from the script (animals, people, places, camera angles) | zdf: zach-d-films 3D cartoon 'what if' explainer"
         default: "ai"
         type: choice
-        options: [ai, stick, 2d, doc, cinema]
+        options: [ai, stick, 2d, doc, cinema, zdf]
       script:
-        description: "Your own script (optional). Plain lines separated by | are read word for word. A screenplay (Scene 1 ... Visual: ... SFX: ... Narrator: \"...\" Dialogue - Name: \"...\") is understood: only Narrator/Dialogue are spoken, any language incl. Hindi"
+        description: "A TOPIC (one short line, e.g. Could ancient armour stop a bullet?) and the AI writes the whole scene-by-scene script for the length you picked - or your own script. Plain lines separated by | are read word for word. A screenplay (Scene 1 ... Visual: ... SFX: ... Narrator: \"...\" Dialogue - Name: \"...\") is understood: only Narrator/Dialogue are spoken, any language incl. Hindi"
         required: false
       reference:
         description: "Optional reference link (YouTube video or any web page) - the new video borrows its topic and tone, not its content"
@@ -81,7 +81,7 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --silent
 
       - name: Chromium for the 3D cinema, 2D and stick modes
-        if: ${{ inputs.mode == 'cinema' || inputs.mode == '2d' || inputs.mode == 'stick' || inputs.mode == 'ai' || inputs.mode == 'cinema' || inputs.mode == '' }}
+        if: ${{ inputs.mode == 'cinema' || inputs.mode == '2d' || inputs.mode == 'stick' || inputs.mode == 'ai' || inputs.mode == 'zdf' || inputs.mode == '' }}
         run: npx playwright install --with-deps chromium
 
       - name: Free AI image model (CPU) for ai / mix visuals
@@ -97,12 +97,12 @@ jobs:
       # stick mode: the skill's free voice (Kokoro) and word timings (Parakeet), ~1 GB, downloaded once and cached
       - name: Restore stick voice models from cache
         id: voicecache
-        if: ${{ inputs.mode == 'stick' || inputs.mode == 'ai' || inputs.mode == 'cinema' || inputs.mode == '' }}
+        if: ${{ inputs.mode == 'stick' || inputs.mode == 'ai' || inputs.mode == 'cinema' || inputs.mode == 'zdf' || inputs.mode == '' }}
         uses: actions/cache/restore@v6
         with: { path: models, key: "stick-voice-kokoro1-parakeet-v2" }
 
       - name: Download stick voice models
-        if: ${{ (inputs.mode == 'stick' || inputs.mode == 'ai' || inputs.mode == 'cinema' || inputs.mode == '') && steps.voicecache.outputs.cache-hit != 'true' }}
+        if: ${{ (inputs.mode == 'stick' || inputs.mode == 'ai' || inputs.mode == 'cinema' || inputs.mode == 'zdf' || inputs.mode == '') && steps.voicecache.outputs.cache-hit != 'true' }}
         continue-on-error: true   # without them stick mode falls back to the Edge voice
         run: |
           mkdir -p models
@@ -113,14 +113,14 @@ jobs:
           fi
 
       - name: Save stick voice models to cache
-        if: ${{ (inputs.mode == 'stick' || inputs.mode == 'ai' || inputs.mode == 'cinema' || inputs.mode == '') && steps.voicecache.outputs.cache-hit != 'true' }}
+        if: ${{ (inputs.mode == 'stick' || inputs.mode == 'ai' || inputs.mode == 'cinema' || inputs.mode == 'zdf' || inputs.mode == '') && steps.voicecache.outputs.cache-hit != 'true' }}
         continue-on-error: true
         uses: actions/cache/save@v6
         with: { path: models, key: "stick-voice-kokoro1-parakeet-v2" }
 
       # cinema mode: objects and creatures designed for earlier scripts are kept and reused (rolling cache)
       - name: Restore designed 3D objects
-        if: ${{ inputs.mode == 'cinema' }}
+        if: ${{ inputs.mode == 'cinema' || inputs.mode == 'zdf' }}
         uses: actions/cache/restore@v6
         with: { path: work/object_recipes.json, key: "object-recipes-${{ github.run_id }}", restore-keys: "object-recipes-" }
 
@@ -172,7 +172,7 @@ jobs:
           WANT_UPLOAD: ${{ github.event_name == 'schedule' || inputs.upload }}
         run: |
           echo "branch: ${GITHUB_REF_NAME}  commit: ${GITHUB_SHA::7}  mode: $MODE"
-          if { [ "$MODE" = "stick" ] || [ "$MODE" = "ai" ]; } && [ ! -f vendor/animation-skills/skills/stick-figure/engine/template/web/chars.js ]; then
+          if { [ "$MODE" = "stick" ] || [ "$MODE" = "ai" ] || [ "$MODE" = "zdf" ]; } && [ ! -f vendor/animation-skills/skills/stick-figure/engine/template/web/chars.js ]; then
             echo "stick mode needs the claude-animation-skills checkout, which is missing"; exit 1; fi
           ARGS=(--mode "$MODE" --length "$LENGTH" --orientation "$ORIENTATION")
           if [ -n "$REFERENCE" ]; then ARGS+=(--reference "$REFERENCE"); fi
@@ -198,7 +198,7 @@ jobs:
 
       - name: Save designed 3D objects
         continue-on-error: true
-        if: ${{ always() && inputs.mode == 'cinema' && hashFiles('work/object_recipes.json') != '' }}
+        if: ${{ always() && (inputs.mode == 'cinema' || inputs.mode == 'zdf') && hashFiles('work/object_recipes.json') != '' }}
         uses: actions/cache/save@v6
         with: { path: work/object_recipes.json, key: "object-recipes-${{ github.run_id }}" }
 
