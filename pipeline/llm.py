@@ -2,7 +2,7 @@
 Used for designing objects, creatures, characters and motion (pipeline/makers.py, design_people below).
 Script writing stays on the local Ollama model (screenwriter.py, storycraft.py ...).
 
-- Gemini: GEMINI_API_KEY (Google AI Studio free tier, no billing). Model: GEMINI_MODEL, default gemini-2.5-flash.
+- Gemini: GEMINI_API_KEY (Google AI Studio free tier, no billing). Model: GEMINI_MODEL, default gemini-3.6-flash, then gemini-3.5-flash-lite.
 - Groq:   GROQ_API_KEY (free tier). Model: GROQ_MODEL, default llama-3.3-70b-versatile.
 - Ollama: the model already running on the runner (LLM_MODEL).
 A provider that answers 429 (rate limit / quota) or keeps failing is skipped for the rest of the run, so one
@@ -27,16 +27,26 @@ def _gemini(prompt, want_json, temp):
     key = os.environ.get("GEMINI_API_KEY")
     if not key:
         raise LookupError("no GEMINI_API_KEY")
-    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
-    body = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": temp, "maxOutputTokens": 8192}}
+    # stable free-tier models (gemini-2.5-flash is deprecated); the first that exists for this key is used
+    models = [m for m in [os.environ.get("GEMINI_MODEL"), "gemini-3.6-flash", "gemini-3.5-flash-lite"] if m]
+    body = {"contents": [{"role": "user", "parts": [{"text": prompt}]}], "generationConfig": {"temperature": temp, "maxOutputTokens": 8192}}
     if want_json:
         body["generationConfig"]["responseMimeType"] = "application/json"
-    r = requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent", params={"key": key}, json=body, timeout=180)
-    if r.status_code == 429:
-        raise PermissionError("Gemini rate limit / free quota reached")
-    r.raise_for_status()
-    parts = r.json()["candidates"][0]["content"]["parts"]
-    return "".join(p.get("text", "") for p in parts)
+    for model in models:
+        # key in the x-goog-api-key header, so it never appears in a URL or an error message in the log
+        r = requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                          headers={"x-goog-api-key": key, "Content-Type": "application/json"}, json=body, timeout=180)
+        if r.status_code == 429:
+            raise PermissionError("Gemini rate limit / free quota reached")
+        if r.status_code == 404:      # model not offered to this key: try the next one
+            continue
+        if r.status_code >= 400:
+            raise RuntimeError(f"Gemini HTTP {r.status_code}")
+        cands = r.json().get("candidates") or []
+        if not cands or not (cands[0].get("content") or {}).get("parts"):
+            raise ValueError(f"Gemini returned no text (finishReason {cands[0].get('finishReason') if cands else 'none'})")
+        return "".join(p.get("text", "") for p in cands[0]["content"]["parts"] if not p.get("thought"))
+    raise LookupError("no Gemini model available for this key")
 
 
 def _groq(prompt, want_json, temp):

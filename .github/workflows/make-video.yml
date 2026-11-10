@@ -165,6 +165,11 @@ jobs:
           for i in 1 2 3; do ollama pull "$LLM_MODEL" && exit 0; sleep $((i * 10)); done
           exit 1
 
+      # one tiny request each, so the log shows whether the Gemini and Groq keys work (never prints the keys)
+      - name: Check the design models (Gemini, Groq)
+        continue-on-error: true
+        run: python pipeline/llm_check.py
+
       - name: Make the video
         env:
           MODE: ${{ inputs.mode || 'ai' }}

@@ -125,7 +125,7 @@ To use real free music for a genre, add tracks to `music/<genre>/` (e.g. `music/
 Scripts are written by the free local Ollama model on the runner. Designing new objects, creatures and characters
 (their shapes, colours, clothes, props and motion) uses, in order:
 
-1. **Gemini** (Google AI Studio free tier, no billing) - secret `GEMINI_API_KEY`, model `gemini-2.5-flash` (change with a `GEMINI_MODEL` variable).
+1. **Gemini** (Google AI Studio free tier, no billing) - secret `GEMINI_API_KEY`, model `gemini-3.6-flash`, then `gemini-3.5-flash-lite` (change with a `GEMINI_MODEL` variable).
 2. **Groq** (free tier) - secret `GROQ_API_KEY`, model `llama-3.3-70b-versatile` (`GROQ_MODEL`).
 3. **Ollama** on the runner - always there, no key.
 
