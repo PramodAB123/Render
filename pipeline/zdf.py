@@ -10,8 +10,14 @@ ENGINE = ROOT / "vendor" / "animation-skills" / "skills" / "zach-d-films" / "eng
 WEAPONS = [(("gun", "pistol", "shoot", "shoots", "shot at", "fires", "bullet"), "bullet"), (("arrow", "bow", "archer"), "arrow"),
            (("sword", "blade", "slash"), "sword"), (("mace", "hammer", "club"), "mace")]
 HITS = ("hit", "hits", "strike", "strikes", "impact", "smash", "slam", "punch", "shoot", "shoots", "fires", "pierce", "stab", "crash", "collide", "explode", "bounce")
-OUTFIT = [(("bulletproof", "steel vest", "vest", "kevlar"), "vest"), (("chain mail", "chainmail"), "chainmail"), (("plate armor", "plate armour", "armor", "armour"), "plate"),
-          (("knight",), "knight"), (("archer", "hood"), "archer")]
+OUTFIT = [(("bulletproof", "bullet-proof", "steel vest", "vest", "kevlar"), "vest"), (("chain mail", "chainmail", "mail shirt"), "chainmail"),
+          (("plate armor", "plate armour", "breastplate", "cuirass", "armor", "armour", "steel plates"), "plate"), (("knight",), "knight"), (("archer", "hood"), "archer")]
+ROLE_OUTFIT = {"knight": "knight", "archer": "archer", "warrior": "plate", "soldier": "plate", "hoplite": "plate", "gladiator": "plate", "legionary": "plate",
+               "legionnaire": "plate", "samurai": "plate", "viking": "chainmail", "spartan": "plate", "roman": "plate", "greek": "plate", "guard": "chainmail"}
+ROLE_SHIRT = {"blacksmith": "#6a4426", "smith": "#6a4426", "scribe": "#e8dcc0", "monk": "#7a5a3a", "priest": "#f0ece0", "scientist": "#f2f4f6", "doctor": "#f2f4f6",
+              "king": "#8a2a2a", "queen": "#6a2a8a", "pirate": "#d8312b", "farmer": "#5a7a3a", "chef": "#f2f4f6", "police": "#2a3a6a", "officer": "#2a3a6a"}
+BATTLE = ("battle", "clash", "fight", "duel", "combat", "war ", "attack")
+FORGE = ("forge", "forges", "hammer", "anvil", "blacksmith", "smith")
 SHIRTS = ["#3a6ad8", "#d8463a", "#3aa86a", "#e0a83a", "#8a5ad8", "#2a8ab0"]
 
 
@@ -79,8 +85,10 @@ def plan(sc, tl, g):
             if a.get("type") not in ("person", "ghost", None) and a.get("type") != "robot":
                 continue   # this engine draws people; animals/creatures appear as designed props
             near = " " + str(a.get("near") or t) + " "
-            outfit = world._first(near, OUTFIT) or ("knight" if a.get("costume") == "helmet" or a.get("noun") == "knight" else "archer" if a.get("noun") == "archer" else "casual")
-            actors.append({"outfit": outfit, "shirt": "#f2f4f6" if a.get("coat") else ((a.get("cols") or [None])[0] or SHIRTS[j % len(SHIRTS)]),
+            role = str(a.get("role") or a.get("noun") or "")
+            wears = re.search(r"\b(wear|wears|wearing|in an?|dressed|armou?red|with an?)\b", near) is not None   # "a man IN a steel vest", not "forge steel plates"
+            outfit = (world._first(near, OUTFIT) if wears or not role else None) or ROLE_OUTFIT.get(role) or ("knight" if a.get("costume") == "helmet" else "casual")
+            actors.append({"outfit": outfit, "role": role, "shirt": "#f2f4f6" if a.get("coat") else (ROLE_SHIRT.get(role) or (a.get("cols") or [None])[0] or SHIRTS[j % len(SHIRTS)]),
                            "old": a.get("old"), "ghost": a.get("ghost"), "size": a.get("size") if a.get("size") not in (None, 1, 1.0) else None})
         acts = [{"chase": "run", "ride": "sit", "scared": "scared", "happy": "happy", "look": "think", "sit": "sit", "sleep": "sleep", "walk": "walk", "run": "run",
                  "attack": "swing", "roar": "scared"}.get(x, "idle") for x in (s.get("acts") or [])][:len(actors)]
@@ -92,14 +100,31 @@ def plan(sc, tl, g):
                 props.append({"kind": "custom", "recipe": o["recipe"]})
             else:
                 props.append({"kind": "custom", "recipe": _lib_recipe(o)})
+        if not actors:   # never an empty frame: someone is always there to show the idea
+            role = next((r for r in world.ROLES if re.search(r"(?<![a-z])" + r + r"(e?s)?(?![a-z])", t)), "")
+            actors.append({"outfit": ROLE_OUTFIT.get(role, world._first(t, OUTFIT) or "casual"), "role": role, "shirt": ROLE_SHIRT.get(role, SHIRTS[i % len(SHIRTS)])})
+            acts = ["think" if "?" in t or "ponder" in t else "talk"]
         weapon = world._first(t, WEAPONS)
-        if weapon in ("sword", "mace", "arrow") and not any(p["kind"] == weapon for p in props):
-            props.append({"kind": weapon if weapon != "arrow" else "bow"})
-        impact = {"weapon": weapon} if weapon and any(re.search(r"(?<![a-z])" + h + r"(?![a-z])", t) for h in HITS) else None
+        battle = any(w in t for w in BATTLE)
+        if battle and len(actors) < 2:   # a battle needs two sides
+            actors.append(dict(actors[0], shirt=SHIRTS[(i + 1) % len(SHIRTS)])); acts = (acts + ["idle"])[:2]
+        if battle and not weapon:
+            weapon = "sword"
+        if any(w in t for w in FORGE):   # the blacksmith hammers glowing steel on an anvil
+            props.append({"kind": "custom", "recipe": {"parts": [
+                {"shape": "box", "size": [.5, .12, .22], "pos": [0, .62, 0], "color": "#3a3c40", "metal": 1}, {"shape": "box", "size": [.2, .5, .18], "pos": [0, .3, 0], "color": "#2a2c30", "metal": 1},
+                {"shape": "box", "size": [.32, .03, .12], "pos": [0, .7, 0], "color": "#ff7a2a", "glow": 2.0}], "motion": "flicker", "focusY": .65, "size": .6}, "at": [.45, 0, .35]})
+            acts = ["swing"] + acts[1:]; weapon = weapon if weapon not in (None, "mace") else None
+            if not any(p.get("kind") == "mace" for p in props):
+                props.append({"kind": "mace", "hold": 0})
+        if weapon in ("sword", "mace", "arrow") and not any(p["kind"] in (weapon, "bow") for p in props):
+            props.append({"kind": weapon if weapon != "arrow" else "bow", "hold": 0})   # weapons are held, not floating
+        impact = {"weapon": weapon} if weapon and (battle or any(re.search(r"(?<![a-z])" + h + r"(?![a-z])", t) for h in HITS)) else None
         if impact and actors:   # the one wearing the armour (or named after 'at') takes the hit
             impact["target"] = next((j for j, a in enumerate(actors) if a["outfit"] in ("vest", "chainmail", "plate")), 1 if len(actors) > 1 else 0)
-        if impact and not actors and not props:
-            props.append({"kind": "stand"})
+        for pr in props:   # held weapons go to a person who isn't taking the hit
+            if pr.get("kind") in ("sword", "mace", "bow", "shield"):
+                pr["hold"] = next((j for j in range(len(actors)) if not impact or j != impact.get("target")), 0)
         shots.append({"start": round(s["start"], 3), "end": round(end, 3), "dur": round(end - s["start"], 3), "actors": actors[:3], "acts": acts, "props": props[:4],
                       "impact": impact, "shot": s.get("shot") or "wide", "shot2": s.get("shot2"), "split": s.get("split"), "focusObj": s.get("focusObj"),
                       "focus": 0, "speaker": s.get("speakerIdx", -1), "words": s.get("words", []), "dark": s.get("tod") == "night"})

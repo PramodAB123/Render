@@ -120,8 +120,11 @@ function buildShot(D, { makeStage }) {
   const scene = makeStage({ shadowSize: 3.5 });
   const people = (D.actors || []).map((a, i, A) => { const h = person(a); const n = A.length;
     h.root.position.set(a.x ?? (i - (n - 1) / 2) * 1.05, 0, a.z ?? -(i % 2) * .25); h.root.rotation.y = a.face ?? (n > 1 ? (i < n / 2 ? .45 : -.45) : -.3); scene.add(h.root); h.home = h.root.position.clone(); return h; });
-  const props = (D.props || []).map((p, i) => { const o = makeProp(p); const slots = [[.0, 0, .55], [.9, 0, .3], [-.95, 0, .3], [1.6, 0, -.4], [-1.6, 0, -.4]];
+  const props = (D.props || []).map((p, i) => { const o = makeProp(p);
+    if (p.hold != null && people[p.hold]) { const h = people[p.hold], wr = p.kind === 'bow' ? h.j.lWr : (p.kind === 'shield' ? h.j.lWr : h.j.rWr); wr.add(o);
+      o.position.set(0, -.06, p.kind === 'shield' ? .08 : 0); if (p.kind === 'sword' || p.kind === 'mace') o.rotation.set(Math.PI, 0, 0); o.userData.held = true; return o; } const slots = [[.0, 0, .55], [.9, 0, .3], [-.95, 0, .3], [1.6, 0, -.4], [-1.6, 0, -.4]];
     const [x, y, z] = p.at || slots[(people.length ? i + 1 : i) % slots.length]; o.position.set(x, y + (p.lift || 0), z); scene.add(o); return o; });
+  const looseProps = props.filter(o => !o.userData.held);
   // an impact: a projectile or a swing reaching a target (slow motion, sparks, the red force ripple)
   let imp = null;
   if (D.impact) {
@@ -140,7 +143,7 @@ function buildShot(D, { makeStage }) {
     if (shooter && I.weapon === 'bullet') { const pg = pistol(); shooter.j.rWr.add(pg); pg.position.set(0, -.06, .04); pg.rotation.set(0, -Math.PI / 2, -Math.PI / 2); }
     if (shooter && I.weapon === 'arrow') { const bw = bow(); shooter.j.lWr.add(bw); bw.position.set(0, -.05, 0); }
     if (shooter && I.weapon === 'sword') { const sw = sword(); shooter.j.rWr.add(sw); sw.position.set(0, -.05, 0); sw.rotation.set(Math.PI, 0, 0); }
-    let gun = null; if (I.weapon === 'bullet' && !shooter) { gun = gunArm(); gun.position.copy(from); gun.rotation.y = -Math.atan2(dir.z, dir.x); gun.rotation.z = Math.asin(dir.y); scene.add(gun); }
+    let gun = null; if (I.weapon === 'bullet' && !shooter && people.length < 2) { gun = gunArm(); gun.position.copy(from); gun.rotation.y = -Math.atan2(dir.z, dir.x); gun.rotation.z = Math.asin(dir.y); scene.add(gun); }
     imp = { I, hitP, from, dir, proj, sp, rip, fl, tr, tgtH, shooter, TI: Math.min(1.4, (D.dur || 3) * .45) };
   }
   const c = cam(D.shot === 'closeup' || D.shot === 'ecu' ? 30 : 36);
@@ -161,10 +164,10 @@ function buildShot(D, { makeStage }) {
       sp.update(it); rip.material.uniforms.uCenter.value.set(0, 0, 0); rip.material.uniforms.uRadius.value = it > 0 ? Math.min(.45, it * .5) : 0; rip.material.uniforms.uAmp.value = it > 0 ? Math.max(0, 1 - it * .5) : 0; rip.material.uniforms.uTime.value = t;
       fl.scale.setScalar(it > 0 ? .05 + it * .2 : .001); fl.material.opacity = it > 0 ? Math.max(0, .8 - it) : 0;
       cc = it < 0 && proj ? pos.clone().setY(0) : hitP.clone().setY(0); hh = it < 0 && proj ? pos : hitP; s = it < 0 && proj ? .55 : .9; bloom = it > 0 ? .9 : .5;
-    } else if (D.focusObj != null && props[D.focusObj]) { const o = props[D.focusObj]; cc = o.position.clone(); s = Math.max(.45, o.userData.size * 1.4); hh = o.position.clone().add(V(0, o.userData.focusY || .4, 0)); cc.y = hh.y - s * .55; }
+    } else if (D.focusObj != null && props[D.focusObj] && !props[D.focusObj].userData.held) { const o = props[D.focusObj]; cc = o.position.clone(); s = Math.max(.45, o.userData.size * 1.4); hh = o.position.clone().add(V(0, o.userData.focusY || .4, 0)); cc.y = hh.y - s * .55; }
     else if (people.length) { people.forEach(h => cc.add(h.root.position)); cc.multiplyScalar(1 / people.length); cc.y = 0; s = 1.4 + (people.length - 1) * .45;
       const f = people[D.focus ?? 0] || people[0]; f.j.head.getWorldPosition(hh); if (D.shot === 'closeup' || D.shot === 'ecu') s = 1.4; }
-    else if (props.length) { cc = props[0].position.clone(); s = Math.max(.6, props[0].userData.size * 1.4); hh = cc.clone().add(V(0, props[0].userData.focusY || .4, 0)); }
+    else if (looseProps.length) { cc = looseProps[0].position.clone(); s = Math.max(.6, looseProps[0].userData.size * 1.4); hh = cc.clone().add(V(0, looseProps[0].userData.focusY || .4, 0)); }
     let shot = D.shot || 'wide'; if (D.split && t > dur * .55) shot = D.shot2 || 'closeup';
     const xx = D.split ? (t > dur * .55 ? range(t, dur * .55, dur) : range(t, 0, dur * .55)) : x;
     const [p, l] = imp ? (t < imp.TI ? [[hh.x - .9, hh.y + .12, hh.z + 1.3], [hh.x + .2, hh.y, hh.z]] : [[hh.x + .9 - .2 * range(t, imp.TI, dur), hh.y + .15, hh.z + 2.1], [hh.x, hh.y - .1, hh.z]]) : aim(shot, cc, s, xx, hh);

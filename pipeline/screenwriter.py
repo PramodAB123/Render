@@ -18,8 +18,14 @@ Theme / tone: {tone}
 Length: {secs} seconds of narration = about {words} spoken words in total, in {scenes} scenes.
 {inspo}
 Rules:
+- NOT a film script: no headings like "EXT.", "INT.", "CUT TO", "DAY", "FADE IN". Visual steps are plain sentences describing what we SEE.
+- Every Visual step has a PERSON (say who: a knight in plate armour, a blacksmith, a scientist in a lab coat, two soldiers ...),
+  what they WEAR or HOLD, and a physical ACTION with an OBJECT (swings a sword at, shoots a bullet at, hammers steel on an anvil,
+  points at a screen showing "TEXT", holds up a vest ...). Show the idea, don't just name a place.
+- Good step: "A soldier fires a pistol at a man in a steel vest; the bullet flattens against the plate in slow motion."
+  Bad step: "EXT. BATTLEFIELD - DAY" or "Ancient warriors" or "Blacksmiths forge steel plates" (who exactly, holding what, doing what to what?).
 - Each scene has ONE narrator line (or one or two short character lines) of about {per} words. Spoken words only in "say".
-- Each scene has 3 to 6 Visual steps: short, concrete, filmable sentences naming WHO, WHERE, WHAT objects and WHAT happens.
+- Each scene has 3 to 5 Visual steps: short, concrete, filmable sentences naming WHO, WHAT objects and WHAT happens.
   Put any words that appear on screens, signs or documents in double quotes inside the step.
 - "camera" says the shots: wide, medium, close-up, extreme close-up, low angle, tracking, side view, aerial, zoom in, zoom out, orbit.
 - "music" is the feel (tense, playful, epic, mysterious, sad, horror, action) and "sfx" the sounds.
@@ -41,7 +47,15 @@ def to_text(j):
     """JSON screenplay -> the script-box format the screenplay reader understands."""
     out = []
     for i, s in enumerate(j.get("scenes", []), 1):
-        vis = [str(v).strip() for v in (s.get("visual") or []) if str(v).strip()]
+        vis = []
+        for v in (s.get("visual") or []):   # drop film-script headings the model sometimes writes anyway
+            v = re.sub(r"^\s*(?:CUT TO|FADE (?:IN|OUT|TO)|DISSOLVE TO)\s*[:\-–—]*\s*", "", str(v).strip(), flags=re.I)
+            v = re.sub(r"^\s*(?:EXT|INT)\.?\s*", "", v, flags=re.I)
+            v = re.sub(r"\s*[-–—]\s*(?:DAY|NIGHT|DAWN|DUSK|MORNING|EVENING|CONTINUOUS)\s*$", "", v, flags=re.I).strip(" -–—.")
+            if v and not (v.isupper() and len(v.split()) <= 6):   # a bare ALL-CAPS heading says nothing to animate
+                vis.append(v[0].upper() + v[1:] + ("" if v.endswith((".", "!", "?", '"')) else "."))
+            elif v:
+                vis.append("Show " + v.lower() + ".")
         say = re.sub(r"\s+", " ", str(s.get("say") or "")).replace('"', "'").strip()
         if not say:
             continue
@@ -71,6 +85,10 @@ def write(topic, secs, mode, g, inspo=()):
             j = _ollama(p, n=min(8000, 600 + scenes * 260))
             text = to_text(j)
             spoken = sum(len(m.split()) for m in re.findall(r':\s*"([^"]+)"', text))
+            steps = len(re.findall(r"^- ", text, re.M)); nsc = max(1, len(j.get("scenes", [])))
+            if attempt < 2 and steps < nsc * 2.5:
+                p += f"\nYour last answer had only {steps} Visual steps for {nsc} scenes. Give EVERY scene 3 to 5 Visual steps with a person doing something to an object."
+                continue
             if spoken < words * .55 and attempt < 2:   # too short for the length: ask again, firmer
                 p += f"\nYour last answer had only {spoken} spoken words. Write {scenes} scenes with about {per} spoken words EACH."
                 continue

@@ -168,9 +168,18 @@ PEOPLE = [  # generic people words -> how they look
     (("salesperson", "salesman", "businessman", "agent", "manager"), {"cols": ["#2a2e3a", "#2a2e3a"], "costume": "none"}),
     (("thin human", "thin figure", "skinny"), {"thin": 1}), (("creepy", "shadowy", "sinister", "in the shadows"), {"creepy": 1}),
     (("stickman", "stick man", "person", "man", "woman", "boy", "girl", "character", "figure", "someone", "inventor", "worker", "teacher", "student", "kid",
-      "engineer", "professor", "astronaut", "pilot", "driver", "chef", "farmer", "detective", "officer", "friend", "crowd"), {}),
+      "engineer", "professor", "astronaut", "pilot", "driver", "chef", "farmer", "detective", "officer", "friend", "crowd", "warrior", "soldier", "knight",
+      "archer", "hoplite", "gladiator", "samurai", "viking", "spartan", "roman", "guard", "blacksmith", "scribe", "monk", "priest", "merchant", "villager",
+      "peasant", "hunter", "caveman", "explorer", "miner", "builder", "athlete", "fighter", "boxer", "men", "women", "people", "children"), {}),
 ]
-PERSON_NOUNS = ["salesperson", "salesman", "businessman", "scientist", "doctor", "researcher", "soldier", "knight", "archer", "warrior", "guard", "king", "queen",
+ROLES = ["warrior", "soldier", "knight", "archer", "hoplite", "gladiator", "legionary", "legionnaire", "samurai", "viking", "spartan", "roman", "greek", "guard",
+         "king", "queen", "prince", "princess", "emperor", "pharaoh", "blacksmith", "smith", "scribe", "monk", "priest", "merchant", "villager", "peasant", "citizen",
+         "sailor", "pirate", "captain", "hunter", "caveman", "explorer", "miner", "builder", "worker", "inventor", "engineer", "scientist", "doctor", "nurse",
+         "researcher", "professor", "teacher", "student", "kid", "child", "boy", "girl", "woman", "man", "people", "person", "stickman", "character", "figure",
+         "astronaut", "pilot", "driver", "chef", "farmer", "detective", "officer", "police", "firefighter", "athlete", "runner", "player", "fighter", "boxer",
+         "salesperson", "salesman", "businessman", "customer", "crowd", "audience", "friend", "family", "elderly", "old man"]
+PLURAL = {"men": "man", "women": "woman", "people": "person", "children": "child", "police": "officer", "crowd": "person", "audience": "person", "family": "person"}
+PERSON_NOUNS = ROLES + ["salesperson", "salesman", "businessman", "scientist", "doctor", "researcher", "soldier", "knight", "archer", "warrior", "guard", "king", "queen",
                 "inventor", "worker", "teacher", "student", "kid", "boy", "girl", "woman", "man", "stickman", "person", "character", "figure", "astronaut", "pilot",
                 "chef", "farmer", "detective", "officer", "engineer", "professor", "old man", "elderly"]
 NUM = {"two": 2, "three": 3, "four": 4, "both": 2, "2": 2, "3": 3, "दो": 2}
@@ -239,10 +248,17 @@ def plan_steps(ln, place, tod, roster, idx):
                 n = 1
             base = next((r for r in roster if r["type"] == "person"), {"name": "person", "type": "person"})
             # different people named in one step ("a man in a steel vest ... a soldier holding a pistol") are different people
-            nouns = [(t.find(" " + w), w) for w in PERSON_NOUNS if re.search(r"(?<![a-z])" + w + r"(?![a-z])", t)]
-            nouns = [w for _, w in sorted(nouns)]
+            hitn = []   # plural roles ("warriors", "blacksmiths", "two scientists") are two or three people
+            for w in dict.fromkeys(PERSON_NOUNS + list(PLURAL)):
+                m = re.search(r"(?<![a-z])" + re.escape(w) + r"(e?s)?(?![a-z])", t)
+                if m:
+                    hitn.append((m.start(), PLURAL.get(w, w), bool(m.group(1)) or w in PLURAL))
+            nouns = []
+            for _, w, plural in sorted(hitn):
+                nouns += [w] * (2 if plural else 1)
             nouns = [w for i, w in enumerate(nouns) if not any(w != x and w in x for x in nouns)]   # 'man' inside 'salesman'
             n = max(n, min(3, len(nouns)))
+            look.setdefault("role", nouns[0] if nouns else "")
             for q in range(n):
                 noun = nouns[q] if q < len(nouns) else (nouns[0] if nouns else "")
                 i0 = t.find(noun) if noun else 0
@@ -251,7 +267,7 @@ def plan_steps(ln, place, tod, roster, idx):
                 for ws, lk in PEOPLE:
                     if any(world_has(near, w) for w in ws):
                         own.update(lk)
-                people.append(dict(base, **(own if len(nouns) > 1 else look), name=f"{base['name']}{q}" if q else base["name"], noun=noun, near=near))
+                people.append(dict(base, **{k: v for k, v in (own if len(nouns) > 1 else look).items() if k != "role"}, name=f"{base['name']}{q}" if q else base["name"], noun=noun, near=near, role=noun))
         if "robot" in t:
             people = [p for p in people if not (p.get("type") == "person" and "robot" in t and "character" in t)] + [{"name": "robot", "type": "robot"}]
         if not people and people_prev and not any(w in t for w in ("screen displays", "close-up of", "zoom into", "display a", "highlight")):
