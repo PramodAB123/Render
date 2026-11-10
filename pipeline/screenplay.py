@@ -4,7 +4,7 @@ time of day and mood for each spoken line; SFX notes become real sound effects. 
 other Devanagari text gets Hindi voices."""
 import re
 
-LABELS = r"(Visual|Animation|SFX|Sound|Music|Camera|Narrator|Narration|Dialogue|Ending text|Text)"
+LABELS = r"(Visual|Animation|SFX|Sound|Music|Camera|Narrator|Narration|Dialogue|Ending text|Text|Place|Location|Setting|Time|Characters|Cast|Objects|Props)"
 SCENE = re.compile(r"(?:ACT\s+\d+[^\n]*?(?=Scene\s+\d+)|)Scene\s+(\d+)\s*[–—-]?\s*([^\n(:]*?)\s*(?:\([^)]*\))?\s*(?=Visual:|Animation:|SFX:|Narrator:|Dialogue|$)", re.I)
 QUOTE = re.compile(r'([A-Za-z][A-Za-z .\'-]{0,30}?)\s*(?:\(([^)]{1,20})\))?\s*:\s*"([^"]{1,400})"')
 DEVANAGARI = re.compile(r"[ऀ-ॿ]")
@@ -12,7 +12,7 @@ DEVANAGARI = re.compile(r"[ऀ-ॿ]")
 
 def looks_like(text):
     t = str(text or "")
-    return len(re.findall(r"\b(Scene\s+\d+|Visual:|Narrator:|Dialogue|SFX:|Animation:)", t, re.I)) >= 3
+    return len(re.findall(r"\b(Scene\s+\d+|Visual:|Narrator:|Dialogue|SFX:|Animation:|Place:|Characters:)", t, re.I)) >= 3
 
 
 def _field(chunk, name):
@@ -20,8 +20,8 @@ def _field(chunk, name):
     return re.sub(r"\s+", " ", m.group(1)).strip() if m else ""
 
 
-BLOCK = r"(?:Visual|Animation|SFX|Sound|Music|Camera)"
-STOP = r"(?=(?:Narrator|Narration|Dialogue|Visual|Animation|SFX|Sound|Music|Camera)\s*[:–—-]|\n\s*[A-Z][\w .'-]{0,25}(?:\([^)]*\))?\s*:\s*\"|$)"
+BLOCK = r"(?:Visual|Animation|SFX|Sound|Music|Camera|Place|Location|Setting|Time|Characters|Cast|Objects|Props)"
+STOP = r"(?=(?:Narrator|Narration|Dialogue|Visual|Animation|SFX|Sound|Music|Camera|Place|Location|Setting|Time|Characters|Cast|Objects|Props)\s*[:–—-]|\n\s*[A-Z][\w .'-]{0,25}(?:\([^)]*\))?\s*:\s*\"|$)"
 JUNK = re.compile(r"^\s*(?:\S+\.(?:net|com|inc|live|media|tv|io|org|ai|co|app|gg|me|in)\S*|\d{1,3})\s*$", re.I)
 
 
@@ -63,6 +63,12 @@ def parse(text):
         title = re.sub(r"\s+", " ", hm.group(1)).strip(" :") if hm else ""
         rest = chunk[hm.end():] if hm else chunk   # the heading is not part of anyone's name
         beats = _beats(rest, "Visual") + _beats(rest, "Animation")
+        place = _field(rest, "Place") or _field(rest, "Location") or _field(rest, "Setting"); when = _field(rest, "Time")
+        objects = [o.strip() for o in re.split(r";|,(?![^()]*\))", _field(rest, "Objects") or _field(rest, "Props")) if o.strip()]
+        chars = [c for c in _beats(rest, "Characters") + _beats(rest, "Cast") if ":" in c]
+        if beats and (place or objects or when):   # the first shot establishes the place, its time and the props
+            lead = ("In " + place.rstrip(".") if place else "Here") + ((" by day" if when.lower().strip() == "day" else f" at {when.lower().strip()}") if when else "") + (", with " + ", ".join(objects[:4]) if objects else "")
+            beats = [lead + "."] + beats
         visual = " ".join(beats)
         camera = _beats(rest, "Camera")
         sfx = _field(rest, "SFX") or _field(rest, "Sound"); music = _field(rest, "Music")
@@ -76,7 +82,8 @@ def parse(text):
                 continue
             speech.append({"speaker": "narrator" if sp.lower() in ("narrator", "narration") else sp, "say": line, "tone": (m.group(2) or "").lower()})
         if speech or visual:
-            scenes.append({"title": title, "visual": visual, "beats": beats, "camera": camera, "sfx": sfx, "music": music, "speech": speech})
+            scenes.append({"title": title, "visual": visual, "beats": beats, "camera": (["wide"] + camera) if camera and beats and (place or objects) else camera,
+                           "sfx": sfx, "music": music, "speech": speech, "place": place, "objects": objects, "characters": chars})
     lines = [dict(s, scene=k) for k, sc in enumerate(scenes) for s in sc["speech"]]
     return scenes, lines
 

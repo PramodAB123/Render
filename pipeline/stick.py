@@ -196,13 +196,19 @@ def from_screenplay(g, text):
     for l in spoken:
         if l["speaker"] != "narrator" and l["speaker"] not in names:
             names.append(l["speaker"])
+    for sc0 in scenes:   # characters the screenplay lists (with their looks) are cast members even if they never speak
+        for c in sc0.get("characters", []):
+            nm = c.split(":", 1)[0].strip()
+            if nm and len(nm) <= 30 and nm.lower() not in [x.lower() for x in names]:
+                names.append(nm)
     cast = []
     for i, n in enumerate(names or ["Hero"]):
         low = n.lower(); ghost = "ghost" in low or "spirit" in low
-        desc = design.about(n, '. '.join(x['visual'] for x in scenes), names)
+        notes = ". ".join(c.split(":", 1)[1] for x in scenes for c in x.get("characters", []) if c.split(":", 1)[0].strip().lower() == low)
+        desc = (notes + ". " if notes else "") + design.about(n, '. '.join(x['visual'] for x in scenes), names)
         gender = "female" if any(w in (low + " " + desc.lower()) for w in ("queen", "girl", "woman", "mother", "lady", "princess", " she ", " her ")) else "male"
         lk = design.design(n, desc, i, gender)
-        costume = lk["costume"] if lk["costume"] != "none" else "bandana"
+        costume = lk["costume"] if lk["costume"] != "none" else ("none" if notes else "bandana")   # described people keep their own look
         cast.append({"name": n, "col": ["red", "yellow", "blue", "green", "purple", "navy"][i % 6], "gender": gender,
                      **lk, "costume": costume, "ghost": ghost or lk["ghost"], "_desc": desc})
     if names:   # character design by the free design models (Gemini -> Groq -> Ollama); the word rules above are the fallback

@@ -25,7 +25,7 @@ on:
         type: choice
         options: [ai, stick, 2d, doc, cinema, zdf]
       script:
-        description: "A TOPIC (one short line, e.g. Could ancient armour stop a bullet?) and the AI writes the whole scene-by-scene script for the length you picked - or your own script. Plain lines separated by | are read word for word. A screenplay (Scene 1 ... Visual: ... SFX: ... Narrator: \"...\" Dialogue - Name: \"...\") is understood: only Narrator/Dialogue are spoken, any language incl. Hindi"
+        description: "A TOPIC (one short line, e.g. Could ancient armour stop a bullet?) and the AI writes the whole scene-by-scene script for the length you picked - or your own script. Plain lines separated by | are read word for word. A screenplay (Scene 1 ... Place: ... Time: ... Characters: - Name: looks ... Objects: ... Visual: - steps ... Camera: ... Music: ... SFX: ... Narrator: \"...\" Dialogue - Name: \"...\") is understood: only Narrator/Dialogue are spoken, any language incl. Hindi"
         required: false
       reference:
         description: "Optional reference link (YouTube video or any web page) - the new video borrows its topic and tone, not its content"
