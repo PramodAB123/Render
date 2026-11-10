@@ -34,7 +34,7 @@ function bg(ctx, t, cam, s, o = {}) {
   if (s.ground == 'road') { ctx.fillStyle = '#f2d65c'; for (let x = -600 + ((-t * 300) % 240); x < 1700; x += 240) ctx.fillRect(x, 1560, 120, 18); }
 }
 function nightTint(ctx, s) { if ((s.tod || 'day') == 'night') darkness(ctx, .18, '#0a0c30'); }
-const cast = i => CAST[i % CAST.length];
+const cast = i => CAST[i % CAST.length]; window.__castFn = cast;
 const SETUPS = {
   closeup(ctx, lt, t, s) { const hh = handheld(t, 3), cam = { x: 540 + hh[0], y: 900 + hh[1] - lt * 10, z: 1 + lt * .035, r: Math.sin(t * .5) * .006 };
     ctx.save(); ctx.filter = 'blur(5px)'; bg(ctx, t, cam, s); ctx.restore(); applyCam(ctx, cam, 1);
@@ -301,6 +301,61 @@ function fxAfter(ctx, s, lt, t) {
   ctx.restore();
 }
 
+
+// ---------- things the script's steps name, drawn flat with the ink outline (bullet, gun, armour, target, screen, sign ...) ----------
+function prop2d(ctx, p, x, y, sc, t, lt) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(sc, sc); ctx.lineJoin = 'round'; ctx.lineWidth = 7; ctx.strokeStyle = INK;
+  const fs = (c) => { ctx.fillStyle = c; ctx.fill(); ctx.stroke(); };
+  const lines = (p.text || []).filter(Boolean);
+  switch (p.kind) {
+    case 'bullet': ctx.rotate(-Math.PI / 2); ctx.beginPath(); ctx.moveTo(-40, -70); ctx.lineTo(40, -70); ctx.lineTo(40, 30); ctx.quadraticCurveTo(40, 110, 0, 130); ctx.quadraticCurveTo(-40, 110, -40, 30); ctx.closePath(); fs('#d9733f');
+      ctx.beginPath(); ctx.rect(-44, -90, 88, 26); fs('#c89a4a'); break;
+    case 'gun': ctx.beginPath(); ctx.rect(-120, -40, 220, 50); fs('#3a3e46'); ctx.beginPath(); ctx.moveTo(-100, 10); ctx.lineTo(-40, 10); ctx.lineTo(-60, 120); ctx.lineTo(-120, 120); ctx.closePath(); fs('#2a2c30');
+      ctx.beginPath(); ctx.rect(100, -30, 40, 26); fs('#2a2c30'); break;
+    case 'target': [150, 110, 70, 30].forEach((r, k) => { ctx.beginPath(); ctx.arc(0, -160, r, 0, 7); fs(k % 2 ? '#ffffff' : '#d8312b'); });
+      ctx.beginPath(); ctx.rect(-12, -10, 24, 10); ctx.moveTo(0, 0); ctx.lineTo(0, -10); ctx.stroke(); ctx.beginPath(); ctx.rect(-8, -20, 16, 20); fs('#6a4426'); break;
+    case 'armour': ctx.beginPath(); ctx.rect(-8, -60, 16, 60); fs('#8a5a2a');
+      ctx.beginPath(); ctx.moveTo(-110, -330); ctx.quadraticCurveTo(0, -370, 110, -330); ctx.lineTo(95, -120); ctx.quadraticCurveTo(0, -80, -95, -120); ctx.closePath(); fs('#b8c0c8');
+      for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.moveTo(-100, -270 + k * 40); ctx.quadraticCurveTo(0, -250 + k * 40, 100, -270 + k * 40); ctx.stroke(); }
+      ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.beginPath(); ctx.ellipse(-45, -280, 18, 40, -.4, 0, 7); ctx.fill(); break;
+    case 'sword': ctx.rotate(.6); ctx.beginPath(); ctx.moveTo(-14, -300); ctx.lineTo(0, -340); ctx.lineTo(14, -300); ctx.lineTo(14, -40); ctx.lineTo(-14, -40); ctx.closePath(); fs('#d9dee6');
+      ctx.beginPath(); ctx.rect(-60, -44, 120, 18); fs('#c89a4a'); ctx.beginPath(); ctx.rect(-10, -26, 20, 70); fs('#5a3a22'); break;
+    case 'shield': ctx.beginPath(); ctx.roundRect(-110, -300, 220, 280, 40); fs('#b3202a'); ctx.beginPath(); ctx.arc(0, -160, 34, 0, 7); fs('#e6b422'); break;
+    case 'bow': ctx.beginPath(); ctx.arc(0, -160, 150, -1.2, 1.2); ctx.lineWidth = 14; ctx.strokeStyle = '#7a4a26'; ctx.stroke(); ctx.lineWidth = 3; ctx.strokeStyle = '#eee'; ctx.beginPath(); ctx.moveTo(Math.cos(-1.2) * 150, -160 + Math.sin(-1.2) * 150); ctx.lineTo(Math.cos(1.2) * 150, -160 + Math.sin(1.2) * 150); ctx.stroke(); break;
+    case 'anvil': ctx.beginPath(); ctx.moveTo(-150, -150); ctx.lineTo(120, -150); ctx.quadraticCurveTo(170, -150, 190, -120); ctx.lineTo(80, -110); ctx.lineTo(60, -40); ctx.lineTo(100, 0); ctx.lineTo(-100, 0); ctx.lineTo(-60, -40); ctx.lineTo(-80, -110); ctx.closePath(); fs('#3a3c40');
+      ctx.fillStyle = `rgba(255,${120 + 60 * Math.sin(t * 9)},40,.95)`; ctx.fillRect(-60, -175, 120, 22); break;
+    case 'blood': ctx.fillStyle = '#b3202a'; [[0, 0, 40], [50, 20, 22], [-40, 30, 18], [20, -40, 14]].forEach(([a, b, r]) => { ctx.beginPath(); ctx.arc(a, -60 + b, r, 0, 7); ctx.fill(); }); break;
+    case 'jar': ctx.beginPath(); ctx.roundRect(-80, -260, 160, 250, 30); ctx.fillStyle = 'rgba(200,240,255,.45)'; ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.ellipse(0, -130, 55, 45, 0, 0, 7); fs('#f29aae'); break;
+    case 'table': ctx.beginPath(); ctx.rect(-220, -170, 440, 28); fs('#9a6a3e'); ctx.beginPath(); ctx.rect(-200, -142, 24, 142); ctx.rect(176, -142, 24, 142); fs('#7a4a26'); break;
+    case 'screen': case 'sign': case 'document': case 'thing': {
+      const doc = p.kind === 'document', w = doc ? 300 : p.kind === 'sign' ? 640 : 420, h = doc ? 400 : p.kind === 'sign' ? 200 : 280, top = doc ? -440 : p.kind === 'sign' ? -560 : -420;
+      if (p.kind === 'screen') { ctx.beginPath(); ctx.rect(-12, top + h, 24, -top - h); fs('#2a2e36'); }
+      if (p.kind === 'sign') { ctx.beginPath(); ctx.rect(-260, top + h, 16, -top - h); ctx.rect(244, top + h, 16, -top - h); fs('#6a4426'); }
+      ctx.beginPath(); ctx.roundRect(-w / 2, top, w, h, 16); fs(doc ? '#f6f1e6' : p.kind === 'thing' ? '#e8dcc0' : '#13233a');
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const L = lines.length ? lines : [p.kind === 'thing' ? '?' : ''];
+      L.forEach((ln, k) => { let f = doc ? 34 : 64; ctx.font = `700 ${f}px Poppins`; while (ctx.measureText(ln).width > w * .86 && f > 16) { f -= 3; ctx.font = `700 ${f}px Poppins`; }
+        ctx.fillStyle = p.hl === k ? '#d8312b' : (doc || p.kind === 'thing' ? '#2a2a33' : '#6ad8ff'); ctx.fillText(ln.toUpperCase(), 0, top + h / 2 + (k - (L.length - 1) / 2) * f * 1.25); });
+      break; }
+  }
+  ctx.restore();
+}
+
+
+// a step about a THING (close-up of the armour, a bullet hitting the target ...): the object large, people small beside it
+function drawPropShot(ctx, s, lt, t, cast, NC, tk) {
+  const P = s.props2d || []; const main = P.find(p => !['bullet', 'gun', 'blood'].includes(p.kind)) || P[0];
+  if (NC && !(s.impact && !s.people)) stickA(ctx, C(cast(0), { x: 230, y: 1790, s: 440, face: face(s.impact ? 'shocked' : s.mood, tk, t), arms: s.impact ? POSE.handsUp.arms : { L: [.3, -.1], R: [1.9, -.3] } }));
+  if (main) prop2d(ctx, main, 690, 1800, 1.35 + lt * .03, t, lt);
+  if (s.impact) {   // slow-motion bullet (or arrow) into the object: streak, hit flash, sparks, a dent / splash
+    const dur = Math.max(1, (s.dur || 2.5)), TI = Math.min(1.4, dur * .45), it = lt - TI;
+    const hx = 690, hy = main && main.kind === 'target' ? 1800 - 160 * 1.35 : 1800 - 230 * 1.35;
+    if (it < 0) { const k = clamp(lt / TI), x = lerp(-60, hx - 70, easeOut(k)); ctx.save(); ctx.strokeStyle = 'rgba(255,240,200,.7)'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(x - 260, hy); ctx.lineTo(x - 40, hy); ctx.stroke(); ctx.restore(); prop2d(ctx, { kind: s.impact === 'arrow' ? 'sword' : 'bullet' }, x, hy + 30, .55, t, lt); }
+    else { const k = easeOut(clamp(it / .35)); burst(ctx, hx, hy, 170 * k + 40, 12, '#ffd23a', 7); for (let j = 0; j < 14; j++) { const a = j / 14 * 6.28, r = 40 + it * 420; ctx.fillStyle = `rgba(255,${160 + j * 6},60,${Math.max(0, 1 - it)})`; ctx.beginPath(); ctx.arc(hx + Math.cos(a) * r, hy + Math.sin(a) * r * .7, 10, 0, 7); ctx.fill(); }
+      ctx.fillStyle = INK; ctx.beginPath(); ctx.ellipse(hx, hy, 22, 16, 0, 0, 7); ctx.fill(); if (it < .1) darkness(ctx, .45 * (1 - it / .1), '#fff'); }
+  }
+}
+
 // ---------- 'ai' mode: AI-illustrated background per scene, stick characters acting on top (reference-video style) ----------
 SETUPS.aibg = function (ctx, lt, t, s) {
   const img = window.BG && window.BG[s.bg]; const i = D.segs.indexOf(s); const dir = i % 2 ? 1 : -1;
@@ -313,7 +368,10 @@ SETUPS.aibg = function (ctx, lt, t, s) {
   // ground shadow band so the characters sit in the picture
   const g = ctx.createLinearGradient(0, H * .72, 0, H); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.35)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   const cam = { x: 540 + px * .3, y: 960, z: 1 + lt * .012 }; applyCam(ctx, cam, 1);
-  const tk = talkingAt(s, t), ghostSpeaks = /ghost/i.test(s.speaker || ''), fx = s.fx || [];
+  const tk = talkingAt(s, t), ghostSpeaks = /ghost/i.test(s.speaker || '') && !s.people, fx = s.fx || [];
+  const PEOPLE = Array.isArray(s.people) ? s.people.map(o => C0({ cols: PAL.red }, o)) : null;
+  const cast = PEOPLE ? Object.assign(k => PEOPLE[k % PEOPLE.length], { ghostIdx: null }) : window.__castFn;
+  const NC = PEOPLE ? PEOPLE.length : CAST.length;
   let base = s.base || 'talk'; if (fx.includes('run') && !['closeup', 'impact'].includes(base)) base = 'run'; else if (fx.includes('walk') && !['closeup', 'impact'].includes(base)) base = 'walk';
   const jump = fx.includes('jump') ? -Math.abs(Math.sin(t * 5.2)) * 120 : 0; ctx.translate(0, jump);
   const gesture = tk ? { L: [.3, -.1], R: [1.2 + Math.sin(t * 5) * .2, -.6] } : POSE.idle.arms;
@@ -321,21 +379,24 @@ SETUPS.aibg = function (ctx, lt, t, s) {
     const gy = 1500 + Math.sin(t * 2) * 14; ctx.save(); ctx.globalAlpha = .62; ctx.shadowColor = CAST[cast.ghostIdx].glow || '#5dff9a'; ctx.shadowBlur = 60;
     stickA(ctx, C(CAST[cast.ghostIdx], { x: 650, y: gy, s: 640, sil: CAST[cast.ghostIdx].glow || '#8dffc0', shadow: false, arms: { L: [2.2, .4], R: [1.2, -.3] } })); ctx.restore();
     stickA(ctx, C(cast(0), { x: 260, y: 1760, s: 470, face: face('scared', false, t), arms: POSE.handsUp.arms }));
-  } else if (['talk', 'bridge', 'jungle'].includes(base) && CAST.length > 1) {
-    const a = s.who || 0, b = (a + 1) % CAST.length;
+  } else if (s.propFocus || base == 'impact2') { drawPropShot(ctx, s, lt, t, cast, NC, tk);
+  } else if (['talk', 'bridge', 'jungle'].includes(base) && NC > 1) {
+    const a = PEOPLE ? 0 : (s.who || 0), b = (a + 1) % NC;
     stickA(ctx, C(cast(a), { x: 330, y: 1760, s: 560, bob: Math.sin(t * 4) * .006, face: face(s.mood, tk, t), arms: gesture }));
     stickA(ctx, C(cast(b), { x: 770, y: 1780, s: 520, flip: -1, bob: Math.sin(t * 4 + 1) * .006, face: face('calm', false, t, 1.3) }));
   } else if (['crowd', 'armies', 'kingdoms'].includes(base)) {
     [[180, 1740, 380], [900, 1740, 380], [380, 1790, 440], [700, 1800, 440]].forEach(([x, y, z2], k) =>
       stickA(ctx, C(cast(k), { x, y, s: z2, flip: x > 540 ? -1 : 1, bob: Math.sin(t * 4 + k) * .01, face: face(s.mood, k == 0 && tk, t, k), arms: s.mood == 'happy' ? POSE.handsUp.arms : POSE.idle.arms })));
   } else if (base == 'closeup') {
-    stickA(ctx, C(cast(s.who), { x: 540, y: 2250, s: 1300, shadow: false, headTilt: Math.sin(t * 1.6) * .03, face: face(s.mood, tk, t), arms: { L: [.25, -.1], R: [.25, -.1] } }));
+    stickA(ctx, C(cast(PEOPLE ? 0 : s.who), { x: 540, y: 2250, s: 1300, shadow: false, headTilt: Math.sin(t * 1.6) * .03, face: face(s.mood, tk, t), arms: { L: [.25, -.1], R: [.25, -.1] } }));
   } else if (base == 'walk' || base == 'run' || base == 'messenger') {
     const sp = base == 'walk' ? 8 : 15;
-    stickA(ctx, C(cast(s.who), { x: 300 + lt * 70, y: 1780, s: 560, legs: walkLegs(t, sp, base == 'walk' ? .5 : .9), arms: walkArms(t, sp, .8), lean: base == 'walk' ? .05 : .16, face: face(s.mood, tk, t) }));
+    stickA(ctx, C(cast(PEOPLE ? 0 : s.who), { x: 300 + lt * 70, y: 1780, s: 560, legs: walkLegs(t, sp, base == 'walk' ? .5 : .9), arms: walkArms(t, sp, .8), lean: base == 'walk' ? .05 : .16, face: face(s.mood, tk, t) }));
   } else {
-    stickA(ctx, C(cast(s.who), { x: i % 3 == 0 ? 540 : (i % 3 == 1 ? 340 : 740), y: 1770, s: 580, flip: i % 3 == 2 ? -1 : 1, bob: Math.sin(t * 3) * .006, face: face(s.mood, tk, t), arms: gesture }));
+    if (PEOPLE && NC > 1) PEOPLE.forEach((o, k) => stickA(ctx, C(o, { x: 260 + k * (560 / Math.max(1, NC - 1)), y: 1770 + (k % 2) * 20, s: 520, flip: k >= NC / 2 ? -1 : 1, bob: Math.sin(t * 3 + k) * .006, face: face(s.mood, k == 0 && tk, t, k), arms: k == 0 ? gesture : POSE.idle.arms })));
+    else stickA(ctx, C(cast(PEOPLE ? 0 : s.who), { x: i % 3 == 0 ? 540 : (i % 3 == 1 ? 340 : 740), y: 1770, s: 580, flip: i % 3 == 2 ? -1 : 1, bob: Math.sin(t * 3) * .006, face: face(s.mood, tk, t), arms: gesture }));
   }
+  if (!s.propFocus && base != 'impact2' && s.props2d && s.props2d.length) s.props2d.forEach((p, k) => prop2d(ctx, p, [860, 200, 700][k % 3], 1790 - (k % 2) * 30, .8, t, lt));
   // the script's animation cues, then the reference videos' overlays on top of the picture
   ctx.setTransform(1, 0, 0, 1, 0, 0); fxAfter(ctx, s, lt, t);
   if (base == 'impact') { const k = easeOut(clamp(lt / .3)); burst(ctx, 640, 1000, 300 * k, 12, '#ffd23a', 5); if (s.label) text(ctx, s.label.toUpperCase().slice(0, 10), 640, 1000, 110 * k, '#fff', INK, 16); if (lt < .1) darkness(ctx, .4 * (1 - lt / .1), '#fff'); }

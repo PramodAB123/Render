@@ -322,7 +322,8 @@ def paint_backgrounds(tl):
             sg["fx"] = sp.fx_tags(vis + " " + say)
         if not sg.get("music"):
             sg["music"] = sp.music_feel(vis + " " + say)
-        sg["bgspec"] = {"env": env, "tod": tod, "props": props, "seed": 11 + __import__("zlib").crc32(str(key).encode()) % 97}
+        if not sg.get("bgspec"):
+            sg["bgspec"] = {"env": env, "tod": tod, "props": props, "seed": 11 + __import__("zlib").crc32(str(key).encode()) % 97}
     print("  painted backgrounds from the script: " + " > ".join(dict.fromkeys(f"{s['bgspec']['env']}/{s['bgspec']['tod']}" for s in tl["segs"])), flush=True)
 
 
@@ -360,6 +361,92 @@ def ai_backgrounds(tl, web, g):
     return made
 
 
+# ---------------- screenplay steps -> stick shots (each Visual step its own shot, its own people, props and impact) ----------------
+ROLE_COSTUME = {"soldier": "helmet", "legionary": "helmet", "legionnaire": "helmet", "warrior": "helmet", "knight": "helmet", "guard": "helmet", "hoplite": "helmet",
+                "gladiator": "helmet", "spartan": "helmet", "roman": "helmet", "greek": "helmet", "samurai": "helmet", "viking": "helmet", "king": "crown", "queen": "crown",
+                "emperor": "crown", "pharaoh": "crown", "prince": "crown", "princess": "crown", "wizard": "wizard", "monk": "hood", "priest": "hood", "archer": "hood",
+                "pirate": "bandana", "sailor": "sailor", "captain": "captain", "blacksmith": "cap", "smith": "cap", "worker": "cap", "builder": "cap", "farmer": "cap",
+                "scribe": "hood", "chef": "cap", "police": "cap", "officer": "cap"}
+ROLE_COLS = {"soldier": ["#8a2a2a", "#c8a04a"], "legionary": ["#b3202a", "#e6b422"], "legionnaire": ["#b3202a", "#e6b422"], "roman": ["#b3202a", "#e6b422"],
+             "knight": ["#9aa3ad", "#9aa3ad"], "warrior": ["#7a4a2a", "#c8a04a"], "king": ["#6a2a8a", "#e6b422"], "scientist": ["#f2f4f6", "#f2f4f6"],
+             "doctor": ["#f2f4f6", "#f2f4f6"], "blacksmith": ["#6a4426", "#3a2414"], "scribe": ["#e8dcc0", "#e8dcc0"], "police": ["#2a3a6a", "#2a3a6a"]}
+STICK_PLACES = [(("colosseum", "arena", "amphitheatre", "amphitheater", "ancient rome", "rome"), "arena"), (("test range", "shooting range", "firing range", "range"), "range"),
+                (("battlefield", "battle field"), "kingdom"), (("forge", "smithy", "workshop"), "village")]
+ENV_MAP = {"lab": "room", "office": "room", "hallway": "room", "park": "village", "virtual": "farm", "street": "street", "savanna": "desert"}
+PROP_WORDS = [(("bullet", "bullets", "9mm", "calibre", "caliber", "round"), "bullet"), (("gun", "pistol", "rifle", "musket"), "gun"),
+              (("target", "bullseye"), "target"), (("breastplate", "armour", "armor", "cuirass", "lorica", "plate", "vest", "chain mail", "chainmail"), "armour"),
+              (("sword", "blade", "gladius"), "sword"), (("shield", "scutum"), "shield"), (("bow", "arrow"), "bow"), (("hammer", "anvil"), "anvil"),
+              (("blood", "bloodied", "wound", "scar"), "blood")]
+LIB2D = {"computer": "screen", "document": "document", "sign": "sign", "jar": "jar", "bench": "table", "chair": "table"}
+
+
+def _person_look(a, j):
+    role = str(a.get("role") or a.get("noun") or ""); near = str(a.get("near") or "").lower()
+    costume = ROLE_COSTUME.get(role) or a.get("costume") if a.get("costume") not in (None, "none", "bandana") else ROLE_COSTUME.get(role, "none")
+    if any(w in near for w in ("helmet", "armour", "armor", "breastplate")):
+        costume = "helmet"
+    cols = ROLE_COLS.get(role) or (["#f2f4f6", "#f2f4f6"] if a.get("coat") else None) or a.get("cols") or [["#2f63c9", "#2f63c9"], ["#3fa35b", "#3fa35b"], ["#e0a83a", "#e0a83a"]][j % 3]
+    hats = {"bandana": "bandana", "sailor": "sailor", "captain": "captain"}
+    o = {"hat": hats.get(costume, "nohat"), "acc": costume if costume not in hats else "none", "hatCol": cols[0], "dotCol": "#fff", "cols": cols,
+         "extras": (["glasses"] if role in ("scientist", "professor", "doctor", "researcher") else []) + (["beard"] if a.get("old") else []), "propName": None, "size": 1.0}
+    if any(w in near for w in ("vest", "breastplate", "armour", "armor", "chain mail")):
+        o["vest"] = "#8a9099"
+    for w, pn in (("sword", "sword"), ("gladius", "sword"), ("spear", "spear"), ("shield", "shield"), ("bow", "bow"), ("hammer", "hammer"), ("staff", "staff"), ("lantern", "lantern")):
+        if w in near:
+            o["propName"] = pn; break
+    return o
+
+
+def expand_steps(sc, tl, g):
+    """Lines with Visual steps -> one stick shot per step (people, props, place, action, camera, impact). Returns new segs."""
+    if not any(s.get("beats") for s in tl["segs"]):
+        return tl["segs"]
+    import world, zdf as Z
+    world.plan(sc, tl, g)
+    steps, _lines = world._segments(tl)
+    out, prev_env, prev_wenv = [], None, None
+    PRESENTER = {"hat": "nohat", "acc": "none", "hatCol": "#2f63c9", "dotCol": "#fff", "cols": ["#2f63c9", "#2f63c9"], "extras": [], "propName": None, "size": 1.0}
+    covered = [w for ws, _ in PROP_WORDS + STICK_PLACES for w in ws] + ["colosseum", "rome", "range"]
+    for i, st in enumerate(steps):
+        src = next((s for s in tl["segs"] if s["start"] <= st["start"] + 1e-3 and s is not None), tl["segs"][0])
+        for s in tl["segs"]:
+            if s["start"] <= st["start"] + 1e-3:
+                src = s
+        t = (" " + str(st.get("text") or "") + " ").lower()
+        named = next((v for ws, v in STICK_PLACES if any(w in t for w in ws)), None)
+        if named:
+            env = named
+        elif prev_env and st.get("env") == prev_wenv:   # the step names no new place: stay where we are
+            env = prev_env
+        else:
+            env = ENV_MAP.get(st.get("env"), st.get("env") or "village")
+        prev_env, prev_wenv = env, st.get("env")
+        people = [_person_look(a, j) for j, a in enumerate(st.get("actors", [])) if a.get("type") in ("person", "ghost", "robot", None)][:3]
+        props = [{"kind": k} for ws, k in PROP_WORDS if any(re.search(r"(?<![a-z])" + re.escape(w) + r"(?![a-z])", t) for w in ws)]
+        for o in st.get("props", []):
+            k = LIB2D.get(o["kind"]) or ("thing" if o["kind"] == "custom" and not any(w in o.get("name", "") for w in covered) else None)
+            if k and k not in [p["kind"] for p in props]:
+                props.append({"kind": k, "text": (o.get("text") or [o.get("name", "")])[:3], "hl": o.get("hlLine")})
+        q = re.findall(r"[\"']([^\"']{3,40})[\"']", str(st.get("text") or ""))
+        if q and not any(p["kind"] in ("screen", "sign", "document") for p in props):
+            props.append({"kind": "sign", "text": q[:2]})
+        weapon = Z.world._first(t, Z.WEAPONS)
+        impact = weapon if weapon and any(re.search(r"(?<![a-z])" + h + r"(?![a-z])", t) for h in Z.HITS + ("hitting", "hits", "striking", "against")) else None
+        if impact == "bullet" and not any(p["kind"] in ("armour", "target") for p in props) and not people:
+            props.append({"kind": "armour"})
+        shot = st.get("shot") or "wide"; action = (st.get("acts") or ["idle"])[0] if st.get("acts") else "idle"
+        setup = "impact2" if impact else ("closeup" if shot in ("closeup", "ecu") and people and not props else
+                                          "walk" if action in ("walk", "ride") else "run" if action in ("run", "chase") else
+                                          "crowd" if len(people) >= 3 else "talk" if len(people) == 2 else "single")
+        seg = {k: src.get(k) for k in ("mood", "who", "label", "hl", "speaker", "fx", "music")}
+        seg.update(start=st["start"], dur=None, setup=setup, tod=st.get("tod") or "day", ground="grass", words=[], scene=f"step{i}",
+                   people=people or ([] if impact else [PRESENTER]), props2d=props[:3], impact=impact, propFocus=bool(props) and (shot in ("closeup", "ecu", "dolly_in") or not people),
+                   bgspec={"env": env, "tod": st.get("tod") or "day", "props": [], "seed": 11 + i * 7}, act=action)
+        out.append(seg)
+    print(f"  stick: {len(out)} shots from the script's Visual steps", flush=True)
+    return out
+
+
 def render(sc, tl, d, g, size=(1080, 1920), ai=False):
     """Builds a web folder from the engine + our shots, renders it with the engine's own renderer -> d/video.mp4.
     ai=True: every shot is an AI-illustrated background with the stick characters acting on it."""
@@ -370,13 +457,14 @@ def render(sc, tl, d, g, size=(1080, 1920), ai=False):
     shutil.rmtree(work, ignore_errors=True); shutil.copytree(ENGINE / "template" / "web", web)
     open(os.path.join(web, "shots.js"), "w", encoding="utf-8").write(
         open(ROOT / "stick" / "backdrop.js", encoding="utf-8").read() + "\n" + open(ROOT / "stick" / "auto_shots.js", encoding="utf-8").read())
-    paint_backgrounds(tl)   # every scene's background is drawn from the script (also the fallback when an AI picture fails)
-    if ai:
-        ai_backgrounds(tl, web, g)
-    words = []
+    words = []   # captions follow the spoken lines
     for k, s in enumerate(tl["segs"]):
         for w in s.get("words", []):
             words.append({"w": w["w"], "s": w["s"], "e": w["e"], "line": k})
+    tl = dict(tl, segs=expand_steps(sc, tl, g))   # a screenplay: one shot per Visual step (the caller's timeline is untouched)
+    paint_backgrounds(tl)   # every scene's background is drawn from the script (also the fallback when an AI picture fails)
+    if ai:
+        ai_backgrounds(tl, web, g)
     open(os.path.join(web, "words.js"), "w", encoding="utf-8").write("const WORDS=" + json.dumps(words) + ";\n")
     open(os.path.join(web, "warp.js"), "w", encoding="utf-8").write("window.WARP = null;\n")
     engine_hats = {"bandana": "bandana", "sailor": "sailor", "captain": "captain"}   # the rest are drawn by stick/auto_shots.js
@@ -391,7 +479,7 @@ def render(sc, tl, d, g, size=(1080, 1920), ai=False):
             o["vest"] = c["vest"]
         return o
     cast_js = [f"C(PAL_X('{c['col']}'), {json.dumps(_look(c, i))})" for i, c in enumerate(sc["cast"])]
-    data = {"segs": [{k: s.get(k) for k in ("start", "dur", "setup", "mood", "who", "label", "tod", "ground", "hl", "words", "speaker", "bg", "fx", "bgspec")} for s in tl["segs"]],
+    data = {"segs": [{k: s.get(k) for k in ("start", "dur", "setup", "mood", "who", "label", "tod", "ground", "hl", "words", "speaker", "bg", "fx", "bgspec", "people", "props2d", "impact", "propFocus", "act")} for s in tl["segs"]],
             "total": tl["total"], "style": {"accent": g.get("thumb_color", "#e0392f")}}
     open(os.path.join(web, "stick_data.js"), "w", encoding="utf-8").write(
         "window.STICK = " + json.dumps(data) + ";\nconst PAL_X = k => ({ cols: PAL[k] || PAL.red });\n"
