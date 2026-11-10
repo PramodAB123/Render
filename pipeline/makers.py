@@ -152,7 +152,8 @@ def design(beats, known_words, use_llm=True):
     if missing and use_llm:
         try:
             steps = "\n".join(f"{i}. {b}" for i, b in enumerate(beats))
-            res = _ollama(PROMPT.format(steps=steps, known=", ".join(sorted(known_words))[:600], motions=", ".join(MOTIONS)))
+            import llm   # Gemini -> Groq -> Ollama
+            res = llm.ask(PROMPT.format(steps=steps, known=", ".join(sorted(known_words))[:600], motions=", ".join(MOTIONS)), task="object design")
             for it in res.get("items", []) if isinstance(res, dict) else []:
                 nm = re.sub(r"\s+", " ", str(it.get("name", "")).lower()).strip()[:40]; rc = clean_recipe(it)
                 if nm and rc:

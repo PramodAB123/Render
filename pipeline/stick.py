@@ -204,7 +204,30 @@ def from_screenplay(g, text):
         lk = design.design(n, desc, i, gender)
         costume = lk["costume"] if lk["costume"] != "none" else "bandana"
         cast.append({"name": n, "col": ["red", "yellow", "blue", "green", "purple", "navy"][i % 6], "gender": gender,
-                     **lk, "costume": costume, "ghost": ghost or lk["ghost"]})
+                     **lk, "costume": costume, "ghost": ghost or lk["ghost"], "_desc": desc})
+    if names:   # character design by the free design models (Gemini -> Groq -> Ollama); the word rules above are the fallback
+        import llm
+        looks = llm.design_people([{"name": c["name"], "text": c["_desc"] or c["name"]} for c in cast])
+        HATS_OK = {"none", "crown", "helmet", "hood", "wizard", "cap", "bandana", "sailor", "captain", "tophat", "cowboy", "turban", "chef"}
+        EXTRAS_OK = {"beard", "glasses", "eyepatch", "cape", "mustache", "scar", "hair"}
+        PROPS_OK = {"sword", "spear", "shield", "bow", "hammer", "staff", "lantern", "map", "book", "phone"}
+        hexc = lambda v: v if re.fullmatch(r"#[0-9a-fA-F]{6}", str(v or "")) else None
+        for c in cast:
+            L = looks.get(c["name"].lower())
+            if not L:
+                continue
+            if str(L.get("hat")) in HATS_OK and L.get("hat") != "none":
+                c["costume"] = L["hat"]
+            if hexc(L.get("shirt")):
+                c["cols"] = [L["shirt"], L["shirt"]]
+            c["extras"] = sorted(set(c.get("extras", [])) | {e for e in (L.get("extras") or []) if e in EXTRAS_OK})
+            if L.get("holds") in PROPS_OK:
+                c["prop"] = L["holds"]
+            if L.get("armour") in ("vest", "chainmail", "plate"):
+                c["vest"] = "#8a9099"
+            c["size"] = {"thin": .9, "big": 1.15}.get(L.get("build"), c.get("size", 1.0))
+    for c in cast:
+        c.pop("_desc", None)
     idx = {c["name"]: k for k, c in enumerate(cast)}
     lines, prev_scene, place = [], -1, None
     prompts = []

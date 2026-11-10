@@ -119,3 +119,19 @@ To use real free music for a genre, add tracks to `music/<genre>/` (e.g. `music/
 - `youtube.privacy`: `private`, `unlisted` or `public`.
 - Change the daily time in the `cron` line of the workflow (UTC).
 - Tip: watch a few videos before letting it upload publicly; YouTube can demonetize repetitive mass-produced AI content.
+
+## Free design models (Gemini, Groq)
+
+Scripts are written by the free local Ollama model on the runner. Designing new objects, creatures and characters
+(their shapes, colours, clothes, props and motion) uses, in order:
+
+1. **Gemini** (Google AI Studio free tier, no billing) - secret `GEMINI_API_KEY`, model `gemini-2.5-flash` (change with a `GEMINI_MODEL` variable).
+2. **Groq** (free tier) - secret `GROQ_API_KEY`, model `llama-3.3-70b-versatile` (`GROQ_MODEL`).
+3. **Ollama** on the runner - always there, no key.
+
+When Gemini answers "rate limit / quota" (HTTP 429) it is skipped for the rest of that run and Groq takes over; if
+Groq is limited too, Ollama does it. Without either key everything still works on Ollama alone.
+
+Add the keys: GitHub repo > Settings > Secrets and variables > Actions > New repository secret: name `GEMINI_API_KEY`
+(value from aistudio.google.com/apikey), then `GROQ_API_KEY` (value from console.groq.com/keys). The run log shows which
+model did each job, e.g. `object design: using gemini` or `character design: Gemini rate limit ... -> next model`.
